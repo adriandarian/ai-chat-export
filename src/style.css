@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root[data-theme="light"] {
+    --background: #ffffff;
+    --surface: #f8fafc; /* slate-50 */
+    --surface-highlight: #ffffff;
+    --text-primary: #0f172a; /* slate-900 */
+    --text-secondary: #475569; /* slate-600 */
+    --text-muted: #94a3b8; /* slate-400 */
+    --primary: #0f172a; /* slate-900 */
+    --primary-hover: #020617; /* slate-950 */
+    --primary-text: #ffffff;
+    --border: #e2e8f0; /* slate-200 */
+  }
+
+  :root[data-theme="dark"] {
+    --background: #0f172a; /* slate-900 */
+    --surface: #1e293b; /* slate-800 */
+    --surface-highlight: #1e293b;
+    --text-primary: #f8fafc; /* slate-50 */
+    --text-secondary: #cbd5e1; /* slate-300 */
+    --text-muted: #64748b; /* slate-500 */
+    --primary: #3b82f6; /* blue-500 */
+    --primary-hover: #2563eb; /* blue-600 */
+    --primary-text: #ffffff;
+    --border: #1e293b; /* slate-800 */
+  }
+
+  :root[data-theme="midnight"] {
+    --background: #09090b; /* zinc-950 */
+    --surface: #18181b; /* zinc-900 */
+    --surface-highlight: #18181b;
+    --text-primary: #fafafa; /* zinc-50 */
+    --text-secondary: #a1a1aa; /* zinc-400 */
+    --text-muted: #52525b; /* zinc-600 */
+    --primary: #8b5cf6; /* violet-500 */
+    --primary-hover: #7c3aed; /* violet-600 */
+    --primary-text: #ffffff;
+    --border: #27272a; /* zinc-800 */
+  }
+}
+
+body {
+  @apply bg-background text-text-primary transition-colors duration-300;
+}
