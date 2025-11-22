@@ -44,8 +44,8 @@ export const ContentApp = () => {
       const target = e.target as HTMLElement;
       const root = getExtensionRoot();
       
-      // Ignore our own UI
-      if (root && root.contains(target)) return;
+      // Ignore our own UI (Shadow Host)
+      if (root === target) return;
 
       hoveredElRef.current = target;
       const rect = target.getBoundingClientRect();
@@ -60,7 +60,9 @@ export const ContentApp = () => {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const root = getExtensionRoot();
-      if (root && root.contains(target)) return;
+      
+      // Ignore clicks on our own UI
+      if (root === target) return;
 
       if (isActiveRef.current && hoveredElRef.current) {
         e.preventDefault();
@@ -112,7 +114,7 @@ export const ContentApp = () => {
   if (!isActive && selectedElements.length === 0) return null;
 
   return (
-    <div className="font-sans text-gray-800">
+    <div className="font-sans text-gray-800 pointer-events-none">
       {/* Highlighter Box */}
       {isActive && hoverRect && (
         <div
@@ -127,7 +129,7 @@ export const ContentApp = () => {
       )}
 
       {/* Control Panel */}
-      <div className="fixed bottom-4 right-4 z-[10001] bg-white shadow-2xl rounded-lg border border-gray-200 w-80 overflow-hidden flex flex-col max-h-[500px]">
+      <div className="fixed bottom-4 right-4 z-[10001] bg-white shadow-2xl rounded-lg border border-gray-200 w-80 overflow-hidden flex flex-col max-h-[500px] pointer-events-auto">
         <div className="p-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
