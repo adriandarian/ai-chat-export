@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MousePointer2, ArrowRight, MessageSquare, FileText, Code, FileJson, Sparkles, Moon, Sun } from 'lucide-react';
+import { MousePointer2, ArrowRight, MessageSquare, Sparkles, Moon, Sun } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
 function App() {
@@ -24,25 +24,34 @@ function App() {
       return;
     }
 
+    // First, try to inject the content script if it's not already loaded
+    try {
+      // Get content script files from manifest
+      const manifest = chrome.runtime.getManifest();
+      const contentScripts = manifest.content_scripts?.[0]?.js || [];
+      
+      if (contentScripts.length > 0) {
+        // Inject all content script files
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: contentScripts,
+        });
+        
+        // Wait a bit for the script to initialize
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (injectionErr) {
+      console.error('Content script injection failed:', injectionErr);
+      // Continue anyway - might already be injected
+    }
+
+    // Now try to send the message
     try {
       await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SELECTION_MODE', payload: true });
       window.close();
     } catch (err: any) {
-      console.error('Connection error, attempting injection:', err);
-      
-      // Try to inject script dynamically if communication fails
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['assets/index.tsx-loader-2wRqBKLD.js'] // This needs to match the build output, but let's use the safer way below
-        });
-        // Actually, let's just ask user to refresh for now as dynamic injection of complex vite builds is tricky without the exact filename from manifest.
-        // However, we can try a cleaner approach:
-        setError("Please refresh the page to enable the extension.");
-      } catch (injectionErr) {
-         console.error('Injection failed:', injectionErr);
-         setError("Please refresh the page.");
-      }
+      console.error('Message send failed:', err);
+      setError("Failed to connect to page. Please refresh the page and try again.");
     }
   };
 
@@ -70,7 +79,7 @@ function App() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-5 flex flex-col relative overflow-hidden">
+      <div className="flex-1 p-5 flex flex-col relative overflow-hidden justify-center">
         
         {/* Decorative blob */}
         <div className="absolute -top-20 -right-20 w-64 h-64 bg-gradient-to-br from-primary/10 to-purple-500/10 rounded-full blur-3xl pointer-events-none opacity-60"></div>
@@ -80,51 +89,35 @@ function App() {
             {error}
           </div>
         ) : (
-          <div className="space-y-5 relative z-0">
+          <div className="space-y-6 relative z-0 text-center">
             
             {/* Hero Text */}
-            <div className="text-center space-y-1.5 mt-1">
-              <h2 className="text-lg font-bold text-text-primary tracking-tight">Export your chats</h2>
-              <p className="text-xs text-text-muted leading-relaxed max-w-[240px] mx-auto">
-                Select specific messages or entire threads from ChatGPT, Claude, and more.
+            <div className="space-y-3">
+              <h2 className="text-xl font-bold text-text-primary tracking-tight">Export your chats</h2>
+              <p className="text-sm text-text-muted leading-relaxed max-w-[260px] mx-auto">
+                Select messages from ChatGPT, Claude, and more to export as <span className="text-primary font-semibold">PDF</span>, <span className="text-primary font-semibold">HTML</span>, or <span className="text-primary font-semibold">JSON</span>.
               </p>
             </div>
 
-            {/* Formats */}
-            <div className="grid grid-cols-3 gap-2.5">
-              <div className="flex flex-col items-center justify-center p-2.5 rounded-xl border border-border bg-surface/50 hover:bg-surface-highlight hover:border-primary/30 hover:shadow-md transition-all duration-200 group cursor-default">
-                <FileText size={18} className="text-text-muted group-hover:text-red-500 transition-colors mb-1.5" />
-                <span className="text-[10px] font-semibold text-text-secondary group-hover:text-text-primary">PDF</span>
-              </div>
-              <div className="flex flex-col items-center justify-center p-2.5 rounded-xl border border-border bg-surface/50 hover:bg-surface-highlight hover:border-primary/30 hover:shadow-md transition-all duration-200 group cursor-default">
-                <Code size={18} className="text-text-muted group-hover:text-blue-500 transition-colors mb-1.5" />
-                <span className="text-[10px] font-semibold text-text-secondary group-hover:text-text-primary">HTML</span>
-              </div>
-              <div className="flex flex-col items-center justify-center p-2.5 rounded-xl border border-border bg-surface/50 hover:bg-surface-highlight hover:border-primary/30 hover:shadow-md transition-all duration-200 group cursor-default">
-                <FileJson size={18} className="text-text-muted group-hover:text-amber-500 transition-colors mb-1.5" />
-                <span className="text-[10px] font-semibold text-text-secondary group-hover:text-text-primary">JSON</span>
-              </div>
+            {/* Simple Action Button */}
+            <div className="pt-2">
+              <button 
+                onClick={handleStartSelection}
+                className="w-full bg-primary hover:bg-primary-hover text-primary-text py-3.5 rounded-xl font-semibold text-sm shadow-xl shadow-primary/10 hover:shadow-2xl hover:shadow-primary/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 group"
+              >
+                <MousePointer2 size={18} className="opacity-80 group-hover:opacity-100 transition-colors" />
+                Start Selection Mode
+                <ArrowRight size={16} className="opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-text-muted font-medium uppercase tracking-wider opacity-60">
+              <Sparkles size={10} />
+              <span>Preserves Styles & Formatting</span>
             </div>
 
           </div>
         )}
-
-        {/* Footer Actions */}
-        <div className="mt-auto pt-4 relative z-10">
-          <button 
-            onClick={handleStartSelection}
-            className="w-full bg-primary hover:bg-primary-hover text-primary-text py-3 rounded-xl font-semibold text-sm shadow-xl shadow-primary/10 hover:shadow-2xl hover:shadow-primary/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 group"
-          >
-            <MousePointer2 size={16} className="opacity-80 group-hover:opacity-100 transition-colors" />
-            Start Selection Mode
-            <ArrowRight size={15} className="opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-          </button>
-          
-          <div className="mt-4 flex items-center justify-center gap-1.5 text-[10px] text-text-muted font-medium uppercase tracking-wider opacity-60">
-            <Sparkles size={10} />
-            <span>Preserves Styles & Formatting</span>
-          </div>
-        </div>
       </div>
     </div>
   )
