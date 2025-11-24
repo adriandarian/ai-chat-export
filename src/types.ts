@@ -12,5 +12,6 @@ export interface SelectedElement {
   className: string;
   xpath: string;
   content: string; // InnerHTML or text
+  computedStyles?: { [key: string]: string }; // Store computed styles for better export
 }
 

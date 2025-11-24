@@ -14,18 +14,42 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Load saved theme
-    chrome.storage.local.get(['theme'], (result) => {
-      if (result.theme) {
-        setThemeState(result.theme as Theme);
-      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    try {
+      if (!chrome?.runtime?.id) {
+        // Extension context invalidated, use default
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          setThemeState('dark');
+        }
+        return;
+      }
+      chrome.storage.local.get(['theme'], (result) => {
+        if (result.theme) {
+          setThemeState(result.theme as Theme);
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          setThemeState('dark');
+        }
+      });
+    } catch (e) {
+      // Extension context invalidated or storage unavailable, use default
+      console.warn('Could not access storage:', e);
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         setThemeState('dark');
       }
-    });
+    }
   }, []);
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
-    chrome.storage.local.set({ theme: newTheme });
+    try {
+      if (!chrome?.runtime?.id) {
+        // Extension context invalidated, skip saving
+        return;
+      }
+      chrome.storage.local.set({ theme: newTheme });
+    } catch (e) {
+      // Extension context invalidated or storage unavailable, skip saving
+      console.warn('Could not save theme:', e);
+    }
   };
 
   useEffect(() => {

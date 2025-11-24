@@ -4,9 +4,21 @@ import styles from '../style.css?inline'
 import { ContentApp } from './ContentApp'
 
 const rootId = 'ai-chat-export-root';
+let reactRoot: ReactDOM.Root | null = null;
 
 // Ensure DOM is ready before initializing
 const initContentScript = () => {
+  // Check if extension context is still valid
+  try {
+    if (!chrome?.runtime?.id) {
+      // Extension context invalidated, skip initialization
+      return;
+    }
+  } catch (e) {
+    // Extension context invalidated, skip initialization
+    return;
+  }
+
   // Wait for body if not ready
   if (!document.body) {
     if (document.readyState === 'loading') {
@@ -34,30 +46,65 @@ const initContentScript = () => {
   // Create Shadow DOM
   const shadowRoot = host.shadowRoot || host.attachShadow({ mode: 'open' });
 
-  // Avoid re-injecting if already initialized or HMR triggers
-  if (shadowRoot.querySelector('#app-root')) {
-    return; // Already initialized
+  // Check if React root already exists
+  const existingAppRoot = shadowRoot.querySelector('#app-root');
+  if (existingAppRoot) {
+    if (reactRoot) {
+      // We have a valid react root, don't re-initialize
+      return;
+    } else {
+      // Old disconnected root exists from extension reload, clean it up
+      existingAppRoot.remove();
+    }
   }
 
-  if (!shadowRoot.querySelector('style')) {
-    const styleElement = document.createElement('style');
-    styleElement.textContent = styles;
-    shadowRoot.appendChild(styleElement);
+  // Clean up old style if it exists (in case of extension reload)
+  const oldStyle = shadowRoot.querySelector('style');
+  if (oldStyle) {
+    oldStyle.remove();
   }
 
-  // Create a root for React if it doesn't exist
+  // Add styles
+  const styleElement = document.createElement('style');
+  styleElement.textContent = styles;
+  shadowRoot.appendChild(styleElement);
+
+  // Create a root for React
   const appRoot = document.createElement('div');
   appRoot.id = 'app-root';
   // appRoot inherits pointer-events: none from host, which is what we want.
   // Interactive children will override this.
   shadowRoot.appendChild(appRoot);
 
-  ReactDOM.createRoot(appRoot).render(
+  // Create and store the React root
+  reactRoot = ReactDOM.createRoot(appRoot);
+  reactRoot.render(
     <React.StrictMode>
       <ContentApp />
     </React.StrictMode>
   );
 };
+
+// Listen for extension context invalidation
+try {
+  chrome.runtime.onConnect.addListener((port) => {
+    port.onDisconnect.addListener(() => {
+      // Extension context was invalidated
+      console.warn('Extension context invalidated, cleaning up...');
+      // Clean up React root if it exists
+      if (reactRoot) {
+        try {
+          reactRoot.unmount();
+          reactRoot = null;
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      }
+    });
+  });
+} catch (e) {
+  // Context already invalidated, ignore
+}
 
 // Initialize immediately if DOM is ready, otherwise wait
 if (document.readyState === 'loading') {

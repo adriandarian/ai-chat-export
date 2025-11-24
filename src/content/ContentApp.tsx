@@ -1,19 +1,22 @@
 import { useEffect, useState, useRef } from 'react';
 import { Message, SelectedElement } from '../types';
-import { Trash2, FileDown, X, MousePointer2, Check, ChevronDown, FileText, Code, FileJson } from 'lucide-react';
+import { Trash2, FileDown, X, MousePointer2, Check, ChevronDown, FileText, Code, FileJson, MessageSquare } from 'lucide-react';
 
-import { generateExportHTML, downloadBlob } from '../utils/export';
+import { generateExportHTML, downloadBlob, downloadPDF } from '../utils/export';
 
 type ExportFormat = 'html' | 'pdf' | 'json';
+type SelectionMode = 'element' | 'conversation';
 
 export const ContentApp = () => {
   const [isActive, setIsActive] = useState(false);
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('element');
   const [selectedElements, setSelectedElements] = useState<SelectedElement[]>([]);
   const [hoverRect, setHoverRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   
   const hoveredElRef = useRef<HTMLElement | null>(null);
   const isActiveRef = useRef(isActive);
+  const selectionModeRef = useRef<SelectionMode>(selectionMode);
 
   useEffect(() => {
     isActiveRef.current = isActive;
@@ -23,15 +26,100 @@ export const ContentApp = () => {
     }
   }, [isActive]);
 
+  // Helper function to detect if an element is likely a conversation container
+  const findConversationContainer = (element: HTMLElement): HTMLElement | null => {
+    // Common patterns for chat/conversation containers
+    const conversationIndicators = [
+      'conversation', 'chat', 'message', 'thread', 'exchange',
+      'dialogue', 'discussion', 'history', 'messages', 'chat-container'
+    ];
+    
+    // Look up the DOM tree for a container that might hold multiple messages
+    let current: HTMLElement | null = element;
+    let bestMatch: HTMLElement | null = null;
+    let bestScore = 0;
+    
+    // Check up to 10 levels up
+    for (let i = 0; i < 10 && current; i++) {
+      const className = current.className?.toLowerCase() || '';
+      const id = current.id?.toLowerCase() || '';
+      const tagName = current.tagName?.toLowerCase() || '';
+      
+      // Score based on indicators
+      let score = 0;
+      conversationIndicators.forEach(indicator => {
+        if (className.includes(indicator) || id.includes(indicator)) {
+          score += 2;
+        }
+      });
+      
+      // Prefer elements that have multiple direct children (likely message containers)
+      const childCount = current.children.length;
+      if (childCount >= 2) {
+        score += childCount * 0.5;
+      }
+      
+      // Prefer certain semantic elements
+      if (['article', 'section', 'main', 'div'].includes(tagName)) {
+        score += 1;
+      }
+      
+      // Avoid very small elements
+      const rect = current.getBoundingClientRect();
+      if (rect.height < 50) {
+        score -= 2;
+      }
+      
+      // Prefer elements that are reasonably sized (not too small, not entire page)
+      if (rect.height > 100 && rect.height < window.innerHeight * 0.8) {
+        score += 1;
+      }
+      
+      if (score > bestScore && score >= 3) {
+        bestScore = score;
+        bestMatch = current;
+      }
+      
+      current = current.parentElement;
+    }
+    
+    return bestMatch;
+  };
+
   useEffect(() => {
+    // Check if extension context is valid
+    const isContextValid = () => {
+      try {
+        return chrome?.runtime?.id !== undefined;
+      } catch (e) {
+        return false;
+      }
+    };
+
+    if (!isContextValid()) {
+      console.warn('Extension context invalidated, message listener not attached');
+      return;
+    }
+
     const handleMessage = (msg: Message) => {
       if (msg.type === 'TOGGLE_SELECTION_MODE') {
         const newState = msg.payload !== undefined ? msg.payload : !isActiveRef.current;
         setIsActive(newState);
       }
     };
-    chrome.runtime.onMessage.addListener(handleMessage);
-    return () => chrome.runtime.onMessage.removeListener(handleMessage);
+
+    try {
+      chrome.runtime.onMessage.addListener(handleMessage);
+      return () => {
+        try {
+          chrome.runtime.onMessage.removeListener(handleMessage);
+        } catch (e) {
+          // Context might be invalidated during cleanup, ignore
+        }
+      };
+    } catch (e) {
+      console.error('Failed to attach message listener:', e);
+    }
   }, []);
 
   useEffect(() => {
@@ -44,8 +132,18 @@ export const ContentApp = () => {
       const root = getExtensionRoot();
       if (root === target) return;
 
-      hoveredElRef.current = target;
-      const rect = target.getBoundingClientRect();
+      let elementToHighlight = target;
+      
+      // In conversation mode, try to find the conversation container
+      if (selectionModeRef.current === 'conversation') {
+        const container = findConversationContainer(target);
+        if (container) {
+          elementToHighlight = container;
+        }
+      }
+      
+      hoveredElRef.current = elementToHighlight;
+      const rect = elementToHighlight.getBoundingClientRect();
       setHoverRect({
         top: rect.top,
         left: rect.left,
@@ -63,17 +161,53 @@ export const ContentApp = () => {
         e.preventDefault();
         e.stopPropagation();
         
-        const el = hoveredElRef.current;
-        const newElement: SelectedElement = {
-          id: crypto.randomUUID(),
-          originalId: el.id,
-          tagName: el.tagName.toLowerCase(),
-          className: el.className,
-          xpath: '',
-          content: el.outerHTML
-        };
+        let el = hoveredElRef.current;
+        
+        // In conversation mode, use the conversation container if found
+        if (selectionModeRef.current === 'conversation') {
+          const container = findConversationContainer(hoveredElRef.current);
+          if (container) {
+            el = container;
+          }
+        }
+        
+        // Check if this element is already selected (avoid duplicates)
+        const isAlreadySelected = selectedElements.some(
+          selected => selected.originalId === el.id && selected.content === el.outerHTML
+        );
+        
+        if (!isAlreadySelected) {
+          // Capture computed styles for better export
+          const computed = window.getComputedStyle(el);
+          const computedStyles: { [key: string]: string } = {};
+          
+          // Capture important visual properties
+          const importantProps = [
+            'color', 'background-color', 'background', 'font-family', 'font-size',
+            'font-weight', 'line-height', 'padding', 'margin', 'border',
+            'border-radius', 'display', 'flex-direction', 'gap', 'width', 'max-width',
+            'text-align', 'opacity', 'box-shadow', 'backgroundColor'
+          ];
+          
+          importantProps.forEach(prop => {
+            const value = computed.getPropertyValue(prop);
+            if (value && value !== 'none' && value !== 'normal' && value !== 'auto' && value !== 'rgba(0, 0, 0, 0)') {
+              computedStyles[prop] = value;
+            }
+          });
+          
+          const newElement: SelectedElement = {
+            id: crypto.randomUUID(),
+            originalId: el.id,
+            tagName: el.tagName.toLowerCase(),
+            className: el.className,
+            xpath: '',
+            content: el.outerHTML,
+            computedStyles: Object.keys(computedStyles).length > 0 ? computedStyles : undefined
+          };
 
-        setSelectedElements(prev => [...prev, newElement]);
+          setSelectedElements(prev => [...prev, newElement]);
+        }
       }
     };
 
@@ -96,7 +230,7 @@ export const ContentApp = () => {
     return () => {
       window.removeEventListener('mouseover', handleMouseOver, { capture: true });
       window.removeEventListener('click', handleClick, { capture: true });
-      window.removeEventListener('scroll', handleScroll, { capture: true });
+      window.removeEventListener('scroll', handleScroll, { capture: true, passive: true });
     };
   }, [isActive]);
 
@@ -104,7 +238,7 @@ export const ContentApp = () => {
     setSelectedElements(prev => prev.filter(el => el.id !== id));
   };
 
-  const handleExport = (format: ExportFormat) => {
+  const handleExport = async (format: ExportFormat) => {
     if (format === 'html') {
       const html = generateExportHTML(selectedElements);
       downloadBlob(html, `chat-export-${Date.now()}.html`, 'text/html');
@@ -112,12 +246,7 @@ export const ContentApp = () => {
       const json = JSON.stringify(selectedElements, null, 2);
       downloadBlob(json, `chat-export-${Date.now()}.json`, 'application/json');
     } else if (format === 'pdf') {
-      // For PDF, we currently generate an HTML that auto-prints. 
-      // A true PDF generation library like jsPDF would be added here.
-      const html = generateExportHTML(selectedElements);
-      // Add print script
-      const printScript = `<script>window.onload = () => { window.print(); }</script>`;
-      downloadBlob(html + printScript, `chat-export-${Date.now()}.html`, 'text/html');
+      await downloadPDF(selectedElements, `chat-export-${Date.now()}.pdf`);
     }
     setShowExportMenu(false);
   };
@@ -143,7 +272,9 @@ export const ContentApp = () => {
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-blue-500'}`} />
             <h3 className="font-semibold text-sm">
-              {isActive ? 'Selecting Elements...' : 'Ready to Export'}
+              {isActive 
+                ? (selectionMode === 'conversation' ? 'Selecting Conversations...' : 'Selecting Elements...')
+                : 'Ready to Export'}
             </h3>
           </div>
           <button 
@@ -158,11 +289,49 @@ export const ContentApp = () => {
           </button>
         </div>
         
+        {isActive && (
+          <div className="px-3 py-2 bg-blue-50 border-b border-blue-100 flex gap-2">
+            <button
+              onClick={() => setSelectionMode('element')}
+              className={`flex-1 py-1.5 px-2 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                selectionMode === 'element'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+              title="Select individual elements"
+            >
+              <MousePointer2 size={12} />
+              Element
+            </button>
+            <button
+              onClick={() => setSelectionMode('conversation')}
+              className={`flex-1 py-1.5 px-2 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                selectionMode === 'conversation'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+              title="Select entire conversations"
+            >
+              <MessageSquare size={12} />
+              Conversation
+            </button>
+          </div>
+        )}
+        
         <div className="p-3 flex-1 overflow-y-auto min-h-[100px] max-h-[300px] bg-white">
           {selectedElements.length === 0 ? (
             <div className="text-center text-gray-400 py-4 text-sm">
-              <MousePointer2 className="mx-auto mb-2 opacity-50" size={24} />
-              <p>Hover and click elements to select them.</p>
+              {selectionMode === 'conversation' ? (
+                <>
+                  <MessageSquare className="mx-auto mb-2 opacity-50" size={24} />
+                  <p>Hover over any message and click to select the entire conversation.</p>
+                </>
+              ) : (
+                <>
+                  <MousePointer2 className="mx-auto mb-2 opacity-50" size={24} />
+                  <p>Hover and click elements to select them.</p>
+                </>
+              )}
             </div>
           ) : (
             <ul className="space-y-2">

@@ -12,7 +12,26 @@ function App() {
 
   const handleStartSelection = async () => {
     setError(null);
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    // Check if extension context is valid
+    try {
+      if (!chrome?.runtime?.id) {
+        setError("Extension context invalidated. Please reload the extension.");
+        return;
+      }
+    } catch (e) {
+      setError("Extension context invalidated. Please reload the extension.");
+      return;
+    }
+
+    let tab;
+    try {
+      [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    } catch (err: any) {
+      console.error('Failed to query tabs:', err);
+      setError("Failed to access tabs. Extension may need to be reloaded.");
+      return;
+    }
     
     if (!tab?.id) {
       setError("Could not identify tab.");
@@ -38,10 +57,16 @@ function App() {
         });
         
         // Wait a bit for the script to initialize
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
-    } catch (injectionErr) {
+    } catch (injectionErr: any) {
       console.error('Content script injection failed:', injectionErr);
+      // Check if it's a context invalidation error
+      if (injectionErr?.message?.includes('Extension context invalidated') || 
+          injectionErr?.message?.includes('context invalidated')) {
+        setError("Extension was reloaded. Please refresh this page and try again.");
+        return;
+      }
       // Continue anyway - might already be injected
     }
 
@@ -51,7 +76,14 @@ function App() {
       window.close();
     } catch (err: any) {
       console.error('Message send failed:', err);
-      setError("Failed to connect to page. Please refresh the page and try again.");
+      const errorMessage = err?.message || '';
+      if (errorMessage.includes('Extension context invalidated') || 
+          errorMessage.includes('context invalidated') ||
+          errorMessage.includes('Receiving end does not exist')) {
+        setError("Extension context invalidated. Please refresh the page and try again.");
+      } else {
+        setError("Failed to connect to page. Please refresh the page and try again.");
+      }
     }
   };
 
