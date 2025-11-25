@@ -20,11 +20,12 @@ export const ContentApp = () => {
 
   useEffect(() => {
     isActiveRef.current = isActive;
+    selectionModeRef.current = selectionMode;
     if (!isActive) {
       setHoverRect(null);
       hoveredElRef.current = null;
     }
-  }, [isActive]);
+  }, [isActive, selectionMode]);
 
   // Helper function to detect if an element is likely a conversation container
   const findConversationContainer = (element: HTMLElement): HTMLElement | null => {
@@ -208,7 +209,7 @@ export const ContentApp = () => {
             'color', 'background-color', 'background', 'font-family', 'font-size',
             'font-weight', 'line-height', 'padding', 'margin', 'border',
             'border-radius', 'display', 'flex-direction', 'gap', 'width', 'max-width',
-            'text-align', 'opacity', 'box-shadow', 'backgroundColor'
+            'text-align', 'opacity', 'box-shadow'
           ];
           
           importantProps.forEach(prop => {
