@@ -273,9 +273,6 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
       </style>
     </head>
     <body>
-      <h1 style="font-family: system-ui, -apple-system, sans-serif; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
-        Chat Export - ${new Date().toLocaleDateString()}
-      </h1>
       <div class="ai-chat-export-item">
         ${enhancedContent}
       </div>
@@ -312,10 +309,12 @@ export const generateExportPDF = async (elements: SelectedElement[]): Promise<Bl
   tempContainer.style.position = 'fixed';
   tempContainer.style.top = '0';
   tempContainer.style.left = '0';
-  tempContainer.style.width = '210mm'; // A4 width
-  tempContainer.style.maxWidth = '210mm';
-  tempContainer.style.minHeight = '100px'; // Ensure minimum height
-  tempContainer.style.padding = '40px';
+    tempContainer.style.width = '210mm'; // A4 width
+    tempContainer.style.maxWidth = '210mm';
+    tempContainer.style.minHeight = '100px'; // Ensure minimum height
+    tempContainer.style.padding = '40px';
+    // Set background to match content background
+    tempContainer.style.backgroundColor = 'transparent';
   tempContainer.style.visibility = 'hidden';
   tempContainer.style.opacity = '0';
   tempContainer.style.pointerEvents = 'none';
@@ -396,6 +395,10 @@ ${cssVariables.join('\n')}
           margin: 0;
           padding: 0;
           font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background-color: transparent;
+        }
+        html {
+          background-color: transparent;
         }
         .ai-chat-export-item {
           margin-bottom: 20px;
@@ -416,9 +419,6 @@ ${cssVariables.join('\n')}
           -moz-osx-font-smoothing: grayscale;
         }
       </style>
-      <h1 style="font-family: system-ui, -apple-system, sans-serif; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
-        Chat Export - ${new Date().toLocaleDateString()}
-      </h1>
       <div class="ai-chat-export-item">
 ${enhancedContent}
       </div>
@@ -479,7 +479,7 @@ ${enhancedContent}
 
     // Convert to canvas - preserve the background color
     const canvas = await html2canvas(tempContainer, {
-      backgroundColor: finalBgColor,
+      backgroundColor: finalBgColor === '#ffffff' ? '#ffffff' : finalBgColor,
       scale: 2,
       useCORS: true,
       logging: true, // Enable logging to debug
@@ -512,12 +512,34 @@ ${enhancedContent}
 
     console.log('Canvas dimensions:', canvas.width, 'x', canvas.height);
 
+    // Convert CSS color to RGB for jsPDF
+    const parseColor = (color: string): [number, number, number] => {
+      // Handle rgb/rgba format
+      const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (rgbMatch) {
+        return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
+      }
+      // Handle hex format
+      if (color.startsWith('#')) {
+        const hex = color.slice(1);
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return [r, g, b];
+      }
+      // Default to white
+      return [255, 255, 255];
+    };
+
+    const [r, g, b] = parseColor(finalBgColor);
+
     // Create PDF
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
+      compress: true,
     });
 
     const imgWidth = 210; // A4 width in mm
@@ -526,7 +548,9 @@ ${enhancedContent}
     let heightLeft = imgHeight;
     let position = 0;
 
-    // Add first page
+    // Add first page - fill background first, then add image on top
+    pdf.setFillColor(r, g, b);
+    pdf.rect(0, 0, 210, pageHeight, 'F'); // Fill entire first page
     pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
     heightLeft -= pageHeight;
 
@@ -534,7 +558,14 @@ ${enhancedContent}
     while (heightLeft > 0) {
       position = heightLeft - imgHeight;
       pdf.addPage();
+      
+      // Fill entire page with background color first
+      pdf.setFillColor(r, g, b);
+      pdf.rect(0, 0, 210, pageHeight, 'F');
+      
+      // Add image on top
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      
       heightLeft -= pageHeight;
     }
 

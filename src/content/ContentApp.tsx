@@ -31,7 +31,8 @@ export const ContentApp = () => {
     // Common patterns for chat/conversation containers
     const conversationIndicators = [
       'conversation', 'chat', 'message', 'thread', 'exchange',
-      'dialogue', 'discussion', 'history', 'messages', 'chat-container'
+      'dialogue', 'discussion', 'history', 'messages', 'chat-container',
+      'group', 'conversation-turn', 'message-group', 'chat-message'
     ];
     
     // Look up the DOM tree for a container that might hold multiple messages
@@ -39,8 +40,8 @@ export const ContentApp = () => {
     let bestMatch: HTMLElement | null = null;
     let bestScore = 0;
     
-    // Check up to 10 levels up
-    for (let i = 0; i < 10 && current; i++) {
+    // Check up to 15 levels up (increased to find main container)
+    for (let i = 0; i < 15 && current; i++) {
       const className = current.className?.toLowerCase() || '';
       const id = current.id?.toLowerCase() || '';
       const tagName = current.tagName?.toLowerCase() || '';
@@ -49,14 +50,20 @@ export const ContentApp = () => {
       let score = 0;
       conversationIndicators.forEach(indicator => {
         if (className.includes(indicator) || id.includes(indicator)) {
-          score += 2;
+          score += 3; // Increased weight
         }
       });
       
       // Prefer elements that have multiple direct children (likely message containers)
       const childCount = current.children.length;
       if (childCount >= 2) {
-        score += childCount * 0.5;
+        score += Math.min(childCount * 0.8, 10); // Increased weight, capped
+      }
+      
+      // Prefer elements with many descendants (likely contains entire conversation)
+      const descendantCount = current.querySelectorAll('*').length;
+      if (descendantCount > 10) {
+        score += Math.min(descendantCount / 10, 5);
       }
       
       // Prefer certain semantic elements
@@ -70,12 +77,27 @@ export const ContentApp = () => {
         score -= 2;
       }
       
-      // Prefer elements that are reasonably sized (not too small, not entire page)
-      if (rect.height > 100 && rect.height < window.innerHeight * 0.8) {
-        score += 1;
+      // Prefer elements that contain a significant portion of the viewport
+      // This helps find the main conversation container
+      const viewportHeight = window.innerHeight;
+      const heightRatio = rect.height / viewportHeight;
+      if (heightRatio > 0.3 && heightRatio < 0.95) {
+        score += 3; // Strong preference for main conversation area
       }
       
-      if (score > bestScore && score >= 3) {
+      // Look for scrollable containers (often contain full conversations)
+      const computed = window.getComputedStyle(current);
+      if (computed.overflowY === 'auto' || computed.overflowY === 'scroll') {
+        score += 2;
+      }
+      
+      // Check if this element contains multiple message-like elements
+      const messageLikeElements = current.querySelectorAll('[class*="message"], [class*="chat"], [class*="turn"]');
+      if (messageLikeElements.length >= 2) {
+        score += messageLikeElements.length * 0.5;
+      }
+      
+      if (score > bestScore && score >= 4) { // Lowered threshold slightly
         bestScore = score;
         bestMatch = current;
       }

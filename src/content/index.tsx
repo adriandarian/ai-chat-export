@@ -3,6 +3,55 @@ import ReactDOM from 'react-dom/client'
 import styles from '../style.css?inline'
 import { ContentApp } from './ContentApp'
 
+// Suppress HMR errors when extension context is invalidated
+const isContextValid = () => {
+  try {
+    return chrome?.runtime?.id !== undefined;
+  } catch (e) {
+    return false;
+  }
+};
+
+// Global error handler to catch and suppress HMR-related errors
+const originalErrorHandler = window.onerror;
+window.onerror = (message, source, lineno, colno, error) => {
+  // Suppress "Extension context invalidated" errors from HMR client
+  if (
+    typeof message === 'string' && 
+    (message.includes('Extension context invalidated') || 
+     message.includes('HMRPort is not initialized'))
+  ) {
+    // Silently ignore HMR errors when context is invalidated
+    if (!isContextValid()) {
+      return true; // Prevent default error handling
+    }
+  }
+  
+  // Call original error handler for other errors
+  if (originalErrorHandler) {
+    return originalErrorHandler.call(window, message, source, lineno, colno, error);
+  }
+  return false;
+};
+
+// Also catch unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason;
+  const message = reason?.message || reason?.toString() || '';
+  
+  // Suppress HMR-related promise rejections
+  if (
+    message.includes('Extension context invalidated') ||
+    message.includes('HMRPort is not initialized') ||
+    message.includes('context invalidated')
+  ) {
+    if (!isContextValid()) {
+      event.preventDefault(); // Prevent default error handling
+      return;
+    }
+  }
+});
+
 const rootId = 'ai-chat-export-root';
 let reactRoot: ReactDOM.Root | null = null;
 
