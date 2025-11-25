@@ -27,83 +27,154 @@ export const ContentApp = () => {
     }
   }, [isActive, selectionMode]);
 
-  // Helper function to detect if an element is likely a conversation container
+  // Helper function to find the main conversation container that holds ALL messages
+  // This is designed to capture entire conversations from first prompt to last response
   const findConversationContainer = (element: HTMLElement): HTMLElement | null => {
-    // Common patterns for chat/conversation containers
+    // Common patterns for chat/conversation containers (expanded list)
     const conversationIndicators = [
       'conversation', 'chat', 'message', 'thread', 'exchange',
       'dialogue', 'discussion', 'history', 'messages', 'chat-container',
-      'group', 'conversation-turn', 'message-group', 'chat-message'
+      'group', 'conversation-turn', 'message-group', 'chat-message',
+      'conversations', 'chat-history', 'message-list', 'thread-container',
+      'conversation-container', 'chat-wrapper', 'messages-container'
     ];
     
-    // Look up the DOM tree for a container that might hold multiple messages
+    // Look up the DOM tree to find the main conversation container
     let current: HTMLElement | null = element;
     let bestMatch: HTMLElement | null = null;
     let bestScore = 0;
     
-    // Check up to 15 levels up (increased to find main container)
-    for (let i = 0; i < 15 && current; i++) {
+    // Check up to 20 levels up to find the root conversation container
+    for (let i = 0; i < 20 && current; i++) {
       const className = current.className?.toLowerCase() || '';
       const id = current.id?.toLowerCase() || '';
       const tagName = current.tagName?.toLowerCase() || '';
+      const computed = window.getComputedStyle(current);
+      const rect = current.getBoundingClientRect();
       
-      // Score based on indicators
       let score = 0;
+      
+      // Strong indicators - these are likely the main conversation container
       conversationIndicators.forEach(indicator => {
         if (className.includes(indicator) || id.includes(indicator)) {
-          score += 3; // Increased weight
+          score += 5; // Very high weight for conversation indicators
         }
       });
       
-      // Prefer elements that have multiple direct children (likely message containers)
-      const childCount = current.children.length;
-      if (childCount >= 2) {
-        score += Math.min(childCount * 0.8, 10); // Increased weight, capped
+      // Count message-like elements (prompts, responses, turns)
+      const messageSelectors = [
+        '[class*="message"]',
+        '[class*="chat"]',
+        '[class*="turn"]',
+        '[class*="prompt"]',
+        '[class*="response"]',
+        '[class*="user"]',
+        '[class*="assistant"]',
+        '[role="article"]',
+        '[data-message-id]',
+        '[data-turn-id]'
+      ];
+      
+      let messageCount = 0;
+      messageSelectors.forEach(selector => {
+        try {
+          messageCount += current.querySelectorAll(selector).length;
+        } catch (e) {
+          // Ignore invalid selectors
+        }
+      });
+      
+      // Strong preference for containers with many messages (entire conversation)
+      if (messageCount >= 2) {
+        score += Math.min(messageCount * 2, 30); // Very high weight for many messages
+      }
+      
+      // Prefer scrollable containers (these often contain the full conversation)
+      if (computed.overflowY === 'auto' || computed.overflowY === 'scroll') {
+        score += 10; // High weight for scrollable containers
+        // Check scroll height vs visible height - if much larger, likely contains full conversation
+        if (current.scrollHeight > current.clientHeight * 1.5) {
+          score += 15; // Very high weight for containers with significant scrollable content
+        }
       }
       
       // Prefer elements with many descendants (likely contains entire conversation)
       const descendantCount = current.querySelectorAll('*').length;
-      if (descendantCount > 10) {
-        score += Math.min(descendantCount / 10, 5);
+      if (descendantCount > 20) {
+        score += Math.min(descendantCount / 20, 10);
       }
       
-      // Prefer certain semantic elements
-      if (['article', 'section', 'main', 'div'].includes(tagName)) {
-        score += 1;
-      }
-      
-      // Avoid very small elements
-      const rect = current.getBoundingClientRect();
-      if (rect.height < 50) {
-        score -= 2;
-      }
-      
-      // Prefer elements that contain a significant portion of the viewport
-      // This helps find the main conversation container
+      // Prefer elements that span a large vertical area (full conversation height)
+      // Even if not all visible, we want the container that holds everything
       const viewportHeight = window.innerHeight;
-      const heightRatio = rect.height / viewportHeight;
-      if (heightRatio > 0.3 && heightRatio < 0.95) {
-        score += 3; // Strong preference for main conversation area
+      const scrollHeight = current.scrollHeight || rect.height;
+      const heightRatio = scrollHeight / viewportHeight;
+      
+      // Prefer containers that are tall (contain many messages)
+      if (scrollHeight > viewportHeight * 0.5) {
+        score += 8;
+      }
+      if (scrollHeight > viewportHeight * 2) {
+        score += 10; // Very tall = likely full conversation
       }
       
-      // Look for scrollable containers (often contain full conversations)
-      const computed = window.getComputedStyle(current);
-      if (computed.overflowY === 'auto' || computed.overflowY === 'scroll') {
-        score += 2;
+      // Prefer certain semantic elements that often contain conversations
+      if (['article', 'section', 'main'].includes(tagName)) {
+        score += 3;
       }
       
-      // Check if this element contains multiple message-like elements
-      const messageLikeElements = current.querySelectorAll('[class*="message"], [class*="chat"], [class*="turn"]');
-      if (messageLikeElements.length >= 2) {
-        score += messageLikeElements.length * 0.5;
+      // Avoid very small elements (not the main container)
+      if (rect.height < 100 && scrollHeight < 200) {
+        score -= 5;
       }
       
-      if (score > bestScore && score >= 4) { // Lowered threshold slightly
-        bestScore = score;
-        bestMatch = current;
+      // Prefer elements that are direct children of body or main content areas
+      if (current.parentElement) {
+        const parentTag = current.parentElement.tagName?.toLowerCase();
+        if (parentTag === 'body' || parentTag === 'main') {
+          score += 5;
+        }
+      }
+      
+      // Check for data attributes that indicate conversation containers
+      const dataAttrs = Array.from(current.attributes)
+        .filter(attr => attr.name.startsWith('data-'))
+        .map(attr => attr.name.toLowerCase());
+      if (dataAttrs.some(attr => attr.includes('conversation') || attr.includes('chat') || attr.includes('thread'))) {
+        score += 8;
+      }
+      
+      // Final scoring - prefer containers with high scores
+      if (score > bestScore) {
+        // Lower threshold - we want to find the conversation container
+        // But still require some evidence it's a conversation container
+        if (score >= 10 || (messageCount >= 2 && score >= 5)) {
+          bestScore = score;
+          bestMatch = current;
+        }
       }
       
       current = current.parentElement;
+    }
+    
+    // If we found a match, verify it's reasonable
+    if (bestMatch) {
+      const finalRect = bestMatch.getBoundingClientRect();
+      const finalScrollHeight = bestMatch.scrollHeight || finalRect.height;
+      
+      // Ensure it's not too small
+      if (finalScrollHeight < 100) {
+        // Too small, try to find a parent
+        let parent = bestMatch.parentElement;
+        while (parent && parent !== document.body) {
+          const parentScrollHeight = parent.scrollHeight || parent.getBoundingClientRect().height;
+          if (parentScrollHeight > finalScrollHeight * 1.5) {
+            bestMatch = parent;
+            break;
+          }
+          parent = parent.parentElement;
+        }
+      }
     }
     
     return bestMatch;
@@ -132,7 +203,7 @@ export const ContentApp = () => {
     };
 
     try {
-      chrome.runtime.onMessage.addListener(handleMessage);
+    chrome.runtime.onMessage.addListener(handleMessage);
       return () => {
         try {
           chrome.runtime.onMessage.removeListener(handleMessage);
@@ -219,17 +290,17 @@ export const ContentApp = () => {
             }
           });
           
-          const newElement: SelectedElement = {
-            id: crypto.randomUUID(),
-            originalId: el.id,
-            tagName: el.tagName.toLowerCase(),
-            className: el.className,
-            xpath: '',
+        const newElement: SelectedElement = {
+          id: crypto.randomUUID(),
+          originalId: el.id,
+          tagName: el.tagName.toLowerCase(),
+          className: el.className,
+          xpath: '',
             content: el.outerHTML,
             computedStyles: Object.keys(computedStyles).length > 0 ? computedStyles : undefined
-          };
+        };
 
-          setSelectedElements(prev => [...prev, newElement]);
+        setSelectedElements(prev => [...prev, newElement]);
         }
       }
     };
@@ -347,12 +418,14 @@ export const ContentApp = () => {
               {selectionMode === 'conversation' ? (
                 <>
                   <MessageSquare className="mx-auto mb-2 opacity-50" size={24} />
-                  <p>Hover over any message and click to select the entire conversation.</p>
+                  <p className="font-medium mb-1">Select Entire Conversation</p>
+                  <p className="text-xs">Hover over any message and click once to capture the full chat from first prompt to last response.</p>
+                  <p className="text-xs mt-2 text-gray-500">This will capture everything, even if it spans hundreds of pages.</p>
                 </>
               ) : (
                 <>
-                  <MousePointer2 className="mx-auto mb-2 opacity-50" size={24} />
-                  <p>Hover and click elements to select them.</p>
+              <MousePointer2 className="mx-auto mb-2 opacity-50" size={24} />
+                  <p>Hover and click elements to select them individually.</p>
                 </>
               )}
             </div>
