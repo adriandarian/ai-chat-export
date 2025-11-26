@@ -9,6 +9,9 @@
  * - htmlExport.ts: HTML generation
  * - markdownExport.ts: Markdown conversion
  * - pdfExport.ts: PDF generation
+ * - pdfContentParser.ts: PDF content parsing
+ * - pdfLayout.ts: PDF layout calculations
+ * - pdfRenderer.ts: PDF rendering
  * - download.ts: File download utilities
  */
 
@@ -54,6 +57,27 @@ export {
   generateExportPDF,
   downloadPDF,
 } from './pdfExport';
+
+// PDF content parsing
+export {
+  parseHTMLToContentBlocks,
+  parseSelectedElements,
+  flattenContentBlocks,
+} from './pdfContentParser';
+
+// PDF layout
+export {
+  PAGE_WIDTH,
+  PAGE_HEIGHT,
+  MARGIN_LEFT,
+  MARGIN_RIGHT,
+  CONTENT_WIDTH,
+} from './pdfLayout';
+
+// PDF rendering
+export {
+  renderContentToPdf,
+} from './pdfRenderer';
 
 // Download utilities
 export {
