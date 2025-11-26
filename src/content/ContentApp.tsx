@@ -598,15 +598,15 @@ export const ContentApp = () => {
       if (format === 'html') {
         setExportProgress('Generating HTML...');
         const html = generateExportHTML(selectedElements);
-        downloadBlob(html, `chat-export-${Date.now()}.html`, 'text/html');
+        await downloadBlob(html, `chat-export-${Date.now()}.html`, 'text/html');
       } else if (format === 'json') {
         setExportProgress('Generating JSON...');
         const json = JSON.stringify(selectedElements, null, 2);
-        downloadBlob(json, `chat-export-${Date.now()}.json`, 'application/json');
+        await downloadBlob(json, `chat-export-${Date.now()}.json`, 'application/json');
       } else if (format === 'markdown') {
         setExportProgress('Generating Markdown...');
         const markdown = generateExportMarkdown(selectedElements);
-        downloadBlob(markdown, `chat-export-${Date.now()}.md`, 'text/markdown');
+        await downloadBlob(markdown, `chat-export-${Date.now()}.md`, 'text/markdown');
       } else if (format === 'pdf') {
         setExportProgress('Generating PDF (this may take a moment)...');
         await downloadPDF(selectedElements, `chat-export-${Date.now()}.pdf`);
