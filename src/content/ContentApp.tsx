@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Message, SelectedElement } from '../types';
-import { Trash2, FileDown, X, MousePointer2, Check, ChevronDown, FileText, Code, FileJson, MessageSquare } from 'lucide-react';
+import { Trash2, FileDown, X, MousePointer2, Check, ChevronDown, FileText, Code, FileJson, MessageSquare, Loader2, FileType } from 'lucide-react';
 
-import { generateExportHTML, downloadBlob, downloadPDF } from '../utils/export';
+import { generateExportHTML, downloadBlob, downloadPDF, generateExportMarkdown } from '../utils/export';
 
-type ExportFormat = 'html' | 'pdf' | 'json';
+type ExportFormat = 'html' | 'pdf' | 'json' | 'markdown';
 type SelectionMode = 'element' | 'conversation';
 
 export const ContentApp = () => {
@@ -13,6 +13,8 @@ export const ContentApp = () => {
   const [selectedElements, setSelectedElements] = useState<SelectedElement[]>([]);
   const [hoverRect, setHoverRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<string>('');
   
   const hoveredElRef = useRef<HTMLElement | null>(null);
   const isActiveRef = useRef(isActive);
@@ -76,9 +78,10 @@ export const ContentApp = () => {
       ];
       
       let messageCount = 0;
+      const currentEl = current; // Capture for closure
       messageSelectors.forEach(selector => {
         try {
-          messageCount += current.querySelectorAll(selector).length;
+          messageCount += currentEl.querySelectorAll(selector).length;
         } catch (e) {
           // Ignore invalid selectors
         }
@@ -108,7 +111,6 @@ export const ContentApp = () => {
       // Even if not all visible, we want the container that holds everything
       const viewportHeight = window.innerHeight;
       const scrollHeight = current.scrollHeight || rect.height;
-      const heightRatio = scrollHeight / viewportHeight;
       
       // Prefer containers that are tall (contain many messages)
       if (scrollHeight > viewportHeight * 0.5) {
@@ -180,6 +182,240 @@ export const ContentApp = () => {
     return bestMatch;
   };
 
+  // Function to scroll through and collect ALL conversation content
+  // This handles virtual scrolling where content loads as you scroll
+  const collectFullConversation = useCallback(async (
+    container: HTMLElement,
+    onProgress?: (msg: string) => void
+  ): Promise<string> => {
+    onProgress?.('Preparing to collect conversation...');
+    
+    // Find the scrollable element - it might be the container or a parent
+    let scrollableEl: HTMLElement | null = container;
+    
+    // Check if container itself is scrollable
+    const isScrollable = (el: HTMLElement): boolean => {
+      const style = window.getComputedStyle(el);
+      return (style.overflowY === 'auto' || style.overflowY === 'scroll') && 
+             el.scrollHeight > el.clientHeight;
+    };
+    
+    // Find the scrollable parent if container isn't scrollable
+    if (!isScrollable(container)) {
+      let parent = container.parentElement;
+      while (parent && parent !== document.body) {
+        if (isScrollable(parent)) {
+          scrollableEl = parent;
+          break;
+        }
+        parent = parent.parentElement;
+      }
+      // Check document.documentElement as last resort
+      if (!scrollableEl || !isScrollable(scrollableEl)) {
+        if (document.documentElement.scrollHeight > document.documentElement.clientHeight) {
+          scrollableEl = document.documentElement;
+        }
+      }
+    }
+    
+    if (!scrollableEl) {
+      // Not scrollable, just return the content as-is
+      return container.outerHTML;
+    }
+    
+    // Store original scroll position
+    const originalScrollTop = scrollableEl.scrollTop;
+    const scrollHeight = scrollableEl.scrollHeight;
+    const clientHeight = scrollableEl.clientHeight;
+    
+    // If content is small enough, just return it
+    if (scrollHeight <= clientHeight * 1.2) {
+      return container.outerHTML;
+    }
+    
+    onProgress?.('Scrolling to start of conversation...');
+    
+    // Scroll to the very top first
+    scrollableEl.scrollTop = 0;
+    await new Promise(r => setTimeout(r, 500));
+    
+    // Collect unique message elements as we scroll
+    const collectedMessages: Map<string, { html: string; order: number }> = new Map();
+    let messageOrder = 0;
+    
+    // Common selectors for chat messages across platforms
+    const messageSelectors = [
+      '[data-message-id]',
+      '[data-testid*="conversation-turn"]',
+      '[class*="ConversationItem"]',
+      '[class*="message-"]',
+      '[class*="chat-message"]',
+      '[class*="Message_"]',
+      '[role="article"]',
+      'article[data-scroll-anchor]',
+      '[class*="group/conversation-turn"]',
+      // Claude specific
+      '[class*="prose"]',
+      // ChatGPT specific  
+      '[data-message-author-role]',
+      // General
+      '.message',
+      '.chat-turn',
+    ];
+    
+    // Function to extract unique identifier for a message
+    const getMessageKey = (el: HTMLElement): string => {
+      // Try data attributes first
+      const dataId = el.getAttribute('data-message-id') || 
+                     el.getAttribute('data-testid') ||
+                     el.getAttribute('data-scroll-anchor');
+      if (dataId) return dataId;
+      
+      // Fall back to content hash (first 100 chars of text content)
+      const textContent = el.textContent?.slice(0, 200) || '';
+      return `${el.tagName}-${textContent.length}-${textContent.slice(0, 50)}`;
+    };
+    
+    // Function to collect visible messages
+    const collectVisibleMessages = () => {
+      for (const selector of messageSelectors) {
+        try {
+          const messages = container.querySelectorAll(selector);
+          messages.forEach((msg) => {
+            const el = msg as HTMLElement;
+            const key = getMessageKey(el);
+            if (!collectedMessages.has(key)) {
+              // Clone and capture computed styles
+              const clone = el.cloneNode(true) as HTMLElement;
+              
+              // Apply computed styles inline for better export
+              const applyStyles = (source: HTMLElement, target: HTMLElement) => {
+                const comp = window.getComputedStyle(source);
+                const importantStyles = [
+                  'color', 'background-color', 'background', 'font-family', 'font-size',
+                  'font-weight', 'line-height', 'padding', 'margin', 'border', 'border-radius',
+                  'display', 'flex-direction', 'gap', 'white-space'
+                ];
+                const styleStr = importantStyles
+                  .map(p => {
+                    const val = comp.getPropertyValue(p);
+                    if (val && val !== 'none' && val !== 'normal' && val !== 'rgba(0, 0, 0, 0)') {
+                      return `${p}: ${val}`;
+                    }
+                    return null;
+                  })
+                  .filter(Boolean)
+                  .join('; ');
+                if (styleStr) {
+                  target.setAttribute('style', (target.getAttribute('style') || '') + '; ' + styleStr);
+                }
+              };
+              
+              applyStyles(el, clone);
+              
+              collectedMessages.set(key, {
+                html: clone.outerHTML,
+                order: messageOrder++
+              });
+            }
+          });
+        } catch (e) {
+          // Invalid selector, skip
+        }
+      }
+    };
+    
+    // If no specific messages found, fall back to direct children
+    const collectDirectChildren = () => {
+      const children = container.children;
+      for (let i = 0; i < children.length; i++) {
+        const el = children[i] as HTMLElement;
+        const key = `child-${i}-${el.tagName}-${(el.textContent?.slice(0, 50) || '')}`;
+        if (!collectedMessages.has(key)) {
+          collectedMessages.set(key, {
+            html: el.outerHTML,
+            order: messageOrder++
+          });
+        }
+      }
+    };
+    
+    // Scroll through the entire conversation
+    const scrollStep = clientHeight * 0.7; // Overlap for safety
+    let currentScroll = 0;
+    let lastMessageCount = 0;
+    let stableCount = 0;
+    
+    while (currentScroll < scrollHeight + clientHeight) {
+      onProgress?.(`Collecting messages... (${collectedMessages.size} found)`);
+      
+      scrollableEl.scrollTop = currentScroll;
+      await new Promise(r => setTimeout(r, 300)); // Wait for virtual content to load
+      
+      collectVisibleMessages();
+      
+      // Check if we found any messages with selectors
+      if (collectedMessages.size === 0) {
+        collectDirectChildren();
+      }
+      
+      // Check if we're done (no new messages after several scrolls)
+      if (collectedMessages.size === lastMessageCount) {
+        stableCount++;
+        if (stableCount > 3) break;
+      } else {
+        stableCount = 0;
+        lastMessageCount = collectedMessages.size;
+      }
+      
+      currentScroll += scrollStep;
+      
+      // Update scroll height in case content loaded dynamically
+      const newScrollHeight = scrollableEl.scrollHeight;
+      if (newScrollHeight > scrollHeight) {
+        // More content appeared, continue scrolling
+      }
+    }
+    
+    // Do one final collection at the very bottom
+    scrollableEl.scrollTop = scrollableEl.scrollHeight;
+    await new Promise(r => setTimeout(r, 500));
+    collectVisibleMessages();
+    if (collectedMessages.size === 0) {
+      collectDirectChildren();
+    }
+    
+    onProgress?.(`Collected ${collectedMessages.size} messages. Restoring view...`);
+    
+    // Restore original scroll position
+    scrollableEl.scrollTop = originalScrollTop;
+    
+    // If we collected individual messages, combine them
+    if (collectedMessages.size > 0) {
+      // Sort by order and combine
+      const sortedMessages = Array.from(collectedMessages.values())
+        .sort((a, b) => a.order - b.order)
+        .map(m => m.html);
+      
+      // Get container styles to wrap the messages
+      const containerStyles = window.getComputedStyle(container);
+      const wrapperStyles = [
+        `display: ${containerStyles.display}`,
+        `flex-direction: ${containerStyles.flexDirection}`,
+        `gap: ${containerStyles.gap}`,
+        `padding: ${containerStyles.padding}`,
+        `background-color: ${containerStyles.backgroundColor}`,
+        `color: ${containerStyles.color}`,
+        `font-family: ${containerStyles.fontFamily}`,
+      ].join('; ');
+      
+      return `<div class="${container.className}" style="${wrapperStyles}">${sortedMessages.join('\n')}</div>`;
+    }
+    
+    // Fallback: return container as-is
+    return container.outerHTML;
+  }, []);
+
   useEffect(() => {
     // Check if extension context is valid
     const isContextValid = () => {
@@ -246,7 +482,7 @@ export const ContentApp = () => {
       });
     };
 
-    const handleClick = (e: MouseEvent) => {
+    const handleClick = async (e: MouseEvent) => {
       const root = getExtensionRoot();
       const path = e.composedPath();
       if (path.includes(root as EventTarget)) return;
@@ -256,21 +492,43 @@ export const ContentApp = () => {
         e.stopPropagation();
         
         let el = hoveredElRef.current;
+        let content = '';
         
-        // In conversation mode, use the conversation container if found
+        // In conversation mode, use the conversation container and collect all content
         if (selectionModeRef.current === 'conversation') {
           const container = findConversationContainer(hoveredElRef.current);
           if (container) {
             el = container;
+            
+            // Show collecting indicator
+            setIsExporting(true);
+            setExportProgress('Collecting conversation...');
+            
+            try {
+              // Scroll through and collect all conversation content
+              content = await collectFullConversation(container, (msg) => {
+                setExportProgress(msg);
+              });
+            } catch (err) {
+              console.error('Error collecting conversation:', err);
+              content = el.outerHTML; // Fallback
+            } finally {
+              setIsExporting(false);
+              setExportProgress('');
+            }
+          } else {
+            content = el.outerHTML;
           }
+        } else {
+          content = el.outerHTML;
         }
         
         // Check if this element is already selected (avoid duplicates)
         const isAlreadySelected = selectedElements.some(
-          selected => selected.originalId === el.id && selected.content === el.outerHTML
+          selected => selected.originalId === el.id
         );
         
-        if (!isAlreadySelected) {
+        if (!isAlreadySelected && content) {
           // Capture computed styles for better export
           const computed = window.getComputedStyle(el);
           const computedStyles: { [key: string]: string } = {};
@@ -290,17 +548,17 @@ export const ContentApp = () => {
             }
           });
           
-        const newElement: SelectedElement = {
-          id: crypto.randomUUID(),
-          originalId: el.id,
-          tagName: el.tagName.toLowerCase(),
-          className: el.className,
-          xpath: '',
-            content: el.outerHTML,
+          const newElement: SelectedElement = {
+            id: crypto.randomUUID(),
+            originalId: el.id,
+            tagName: el.tagName.toLowerCase(),
+            className: typeof el.className === 'string' ? el.className : '',
+            xpath: '',
+            content: content,
             computedStyles: Object.keys(computedStyles).length > 0 ? computedStyles : undefined
-        };
+          };
 
-        setSelectedElements(prev => [...prev, newElement]);
+          setSelectedElements(prev => [...prev, newElement]);
         }
       }
     };
@@ -324,7 +582,7 @@ export const ContentApp = () => {
     return () => {
       window.removeEventListener('mouseover', handleMouseOver, { capture: true });
       window.removeEventListener('click', handleClick, { capture: true });
-      window.removeEventListener('scroll', handleScroll, { capture: true, passive: true });
+      window.removeEventListener('scroll', handleScroll, { capture: true });
     };
   }, [isActive]);
 
@@ -333,16 +591,32 @@ export const ContentApp = () => {
   };
 
   const handleExport = async (format: ExportFormat) => {
-    if (format === 'html') {
-      const html = generateExportHTML(selectedElements);
-      downloadBlob(html, `chat-export-${Date.now()}.html`, 'text/html');
-    } else if (format === 'json') {
-      const json = JSON.stringify(selectedElements, null, 2);
-      downloadBlob(json, `chat-export-${Date.now()}.json`, 'application/json');
-    } else if (format === 'pdf') {
-      await downloadPDF(selectedElements, `chat-export-${Date.now()}.pdf`);
-    }
+    setIsExporting(true);
     setShowExportMenu(false);
+    
+    try {
+      if (format === 'html') {
+        setExportProgress('Generating HTML...');
+        const html = generateExportHTML(selectedElements);
+        downloadBlob(html, `chat-export-${Date.now()}.html`, 'text/html');
+      } else if (format === 'json') {
+        setExportProgress('Generating JSON...');
+        const json = JSON.stringify(selectedElements, null, 2);
+        downloadBlob(json, `chat-export-${Date.now()}.json`, 'application/json');
+      } else if (format === 'markdown') {
+        setExportProgress('Generating Markdown...');
+        const markdown = generateExportMarkdown(selectedElements);
+        downloadBlob(markdown, `chat-export-${Date.now()}.md`, 'text/markdown');
+      } else if (format === 'pdf') {
+        setExportProgress('Generating PDF (this may take a moment)...');
+        await downloadPDF(selectedElements, `chat-export-${Date.now()}.pdf`);
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+      setExportProgress('');
+    }
   };
 
   if (!isActive && selectedElements.length === 0) return null;
@@ -452,12 +726,19 @@ export const ContentApp = () => {
         </div>
 
         <div className="p-3 border-t border-gray-200 bg-gray-50 flex flex-col gap-2 rounded-b-lg relative">
+          {isExporting && (
+            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-b-lg">
+              <Loader2 className="animate-spin text-blue-600 mb-2" size={24} />
+              <span className="text-xs text-gray-600 font-medium text-center px-4">{exportProgress || 'Processing...'}</span>
+            </div>
+          )}
+          
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs text-gray-500 font-medium">{selectedElements.length} items selected</span>
             <button 
                className="text-xs text-red-500 hover:text-red-700 font-medium"
                onClick={() => setSelectedElements([])}
-               disabled={selectedElements.length === 0}
+               disabled={selectedElements.length === 0 || isExporting}
              >
                Clear All
              </button>
@@ -506,6 +787,13 @@ export const ContentApp = () => {
                      >
                        <FileText size={14} className="text-red-500" />
                        Export as PDF
+                     </button>
+                     <button 
+                       className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700 border-t border-gray-100"
+                       onClick={() => handleExport('markdown')}
+                     >
+                       <FileType size={14} className="text-purple-500" />
+                       Export as Markdown
                      </button>
                      <button 
                        className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700 border-t border-gray-100"

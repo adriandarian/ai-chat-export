@@ -15,60 +15,6 @@ const getPageStyles = () => {
   return styles.join('\n');
 };
 
-// Get computed styles for an element and its children
-const getComputedStylesForElement = (element: HTMLElement): string => {
-  const styles: string[] = [];
-  const walker = document.createTreeWalker(
-    element,
-    NodeFilter.SHOW_ELEMENT,
-    null
-  );
-
-  let node: Node | null = walker.currentNode;
-  while (node) {
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      const computed = window.getComputedStyle(el);
-      const tagName = el.tagName.toLowerCase();
-      const id = el.id ? `#${el.id}` : '';
-      const classes = el.className && typeof el.className === 'string' 
-        ? `.${el.className.split(' ').filter(c => c).join('.')}` 
-        : '';
-      
-      // Create a unique selector
-      const selector = `${tagName}${id}${classes}`.replace(/\s+/g, '');
-      if (selector) {
-        const styleRules: string[] = [];
-        
-        // Capture important visual properties
-        const importantProps = [
-          'color', 'background-color', 'background', 'font-family', 'font-size',
-          'font-weight', 'line-height', 'padding', 'margin', 'border',
-          'border-radius', 'display', 'flex-direction', 'gap', 'width', 'height',
-          'max-width', 'min-width', 'text-align', 'opacity', 'box-shadow',
-          'transform', 'position', 'top', 'left', 'right', 'bottom', 'z-index'
-        ];
-        
-        importantProps.forEach(prop => {
-          const value = computed.getPropertyValue(prop);
-          if (value && value !== 'none' && value !== 'normal' && value !== 'auto') {
-            styleRules.push(`  ${prop}: ${value};`);
-          }
-        });
-        
-        if (styleRules.length > 0) {
-          styles.push(`[data-export-id="${el.getAttribute('data-export-id') || ''}"] {`);
-          styles.push(...styleRules);
-          styles.push('}');
-        }
-      }
-    }
-    node = walker.nextNode();
-  }
-  
-  return styles.join('\n');
-};
-
 // Enhance element HTML with stored computed styles or find original element
 const enhanceElementWithStyles = (element: SelectedElement): string => {
   // First, try to find the original element in the DOM
@@ -225,69 +171,124 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
     }
   }).join('\n');
 
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Chat Export</title>
-      <base href="${window.location.origin}">
-      ${styles}
-      <style>
-        :root {
-          /* Preserve CSS variables from the original page */
+  // Get background color from document
+  const bodyBgColor = window.getComputedStyle(document.body).backgroundColor;
+  const htmlBgColor = window.getComputedStyle(document.documentElement).backgroundColor;
+  const bgColor = (bodyBgColor && bodyBgColor !== 'rgba(0, 0, 0, 0)') 
+    ? bodyBgColor 
+    : (htmlBgColor && htmlBgColor !== 'rgba(0, 0, 0, 0)') 
+      ? htmlBgColor 
+      : '#ffffff';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Export - ${new Date().toLocaleDateString()}</title>
+  <base href="${window.location.origin}">
+  ${styles}
+  <style>
+    :root {
+      /* Preserve CSS variables from the original page */
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: ${bgColor};
+    }
+    body { 
+      padding: 40px; 
+      max-width: 1200px; 
+      margin: 0 auto; 
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+    }
+    .ai-chat-export-wrapper {
+      /* Remove all overflow constraints for printing */
+      overflow: visible !important;
+      height: auto !important;
+      max-height: none !important;
+    }
+    .ai-chat-export-item {
+      position: relative;
+      margin-bottom: 30px;
+      /* Remove overflow constraints */
+      overflow: visible !important;
+      height: auto !important;
+      max-height: none !important;
+    }
+    /* Remove overflow from all elements for better printing */
+    .ai-chat-export-item * {
+      overflow: visible !important;
+      max-height: none !important;
+    }
+    /* But allow specific elements to maintain scroll behavior if needed */
+    .ai-chat-export-item pre,
+    .ai-chat-export-item code {
+      overflow-x: auto !important;
+    }
+    @media print {
+      html, body {
+        background-color: ${bgColor} !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+      body {
+        padding: 20px;
+      }
+      .ai-chat-export-item {
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+      /* Allow page breaks in long conversations */
+      .ai-chat-export-item > * {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+    pre, code {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="ai-chat-export-wrapper">
+    <div class="ai-chat-export-item">
+      ${enhancedContent}
+    </div>
+  </div>
+  <script>
+    // Fix image sources to use absolute URLs
+    document.querySelectorAll('img').forEach(img => {
+      if (img.src && !img.src.startsWith('http')) {
+        try {
+          const absoluteUrl = new URL(img.src, window.location.href).href;
+          img.src = absoluteUrl;
+        } catch (e) {
+          console.warn('Could not fix image URL:', img.src);
         }
-        * {
-          box-sizing: border-box;
-        }
-        body { 
-          padding: 40px; 
-          max-width: 1200px; 
-          margin: 0 auto; 
-          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          line-height: 1.6;
-          /* Don't force background - preserve original */
-        }
-        .ai-chat-export-item {
-          position: relative;
-          margin-bottom: 30px;
-        }
-        @media print {
-          body {
-            padding: 20px;
-          }
-          .ai-chat-export-item {
-            break-inside: avoid;
-            page-break-inside: avoid;
-          }
-        }
-        /* Preserve original styling - don't force white background */
-        img {
-          max-width: 100%;
-          height: auto;
-        }
-        pre, code {
-          white-space: pre-wrap;
-          word-wrap: break-word;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="ai-chat-export-item">
-        ${enhancedContent}
-      </div>
-      <script>
-        // Fix image sources to use absolute URLs
-        document.querySelectorAll('img').forEach(img => {
-          if (img.src && !img.src.startsWith('http')) {
-            const absoluteUrl = new URL(img.src, window.location.href).href;
-            img.src = absoluteUrl;
-          }
-        });
-      </script>
-    </body>
-    </html>
-  `;
+      }
+    });
+    // Remove overflow constraints from scrollable elements
+    document.querySelectorAll('[style*="overflow"]').forEach(el => {
+      el.style.overflow = 'visible';
+      el.style.overflowY = 'visible';
+      el.style.maxHeight = 'none';
+      el.style.height = 'auto';
+    });
+  </script>
+</body>
+</html>`;
 };
 
 export const downloadBlob = (content: string, filename: string, contentType: string) => {
@@ -302,26 +303,124 @@ export const downloadBlob = (content: string, filename: string, contentType: str
   URL.revokeObjectURL(url);
 };
 
+// Simple HTML to Markdown converter (no external dependencies)
+const htmlToMarkdown = (html: string): string => {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  
+  const processNode = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return node.textContent?.trim() || '';
+    }
+    
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return '';
+    }
+    
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+    const children = Array.from(el.childNodes).map(n => processNode(n)).join('');
+    
+    switch (tag) {
+      case 'h1': return `\n# ${children}\n`;
+      case 'h2': return `\n## ${children}\n`;
+      case 'h3': return `\n### ${children}\n`;
+      case 'h4': return `\n#### ${children}\n`;
+      case 'h5': return `\n##### ${children}\n`;
+      case 'h6': return `\n###### ${children}\n`;
+      case 'p': return `\n${children}\n`;
+      case 'br': return '\n';
+      case 'hr': return '\n---\n';
+      case 'strong':
+      case 'b': return `**${children}**`;
+      case 'em':
+      case 'i': return `*${children}*`;
+      case 'code': 
+        if (el.parentElement?.tagName.toLowerCase() === 'pre') {
+          return children;
+        }
+        return `\`${children}\``;
+      case 'pre': return `\n\`\`\`\n${children}\n\`\`\`\n`;
+      case 'blockquote': return `\n> ${children.split('\n').join('\n> ')}\n`;
+      case 'ul':
+      case 'ol': return `\n${children}`;
+      case 'li': 
+        const isOrdered = el.parentElement?.tagName.toLowerCase() === 'ol';
+        const prefix = isOrdered ? '1.' : '-';
+        return `${prefix} ${children}\n`;
+      case 'a': 
+        const href = el.getAttribute('href');
+        return href ? `[${children}](${href})` : children;
+      case 'img':
+        const src = el.getAttribute('src');
+        const alt = el.getAttribute('alt') || 'image';
+        return src ? `![${alt}](${src})` : '';
+      case 'div':
+      case 'span':
+      case 'article':
+      case 'section':
+      case 'main':
+        // Check for common role indicators
+        const role = el.getAttribute('data-message-author-role') || 
+                     el.getAttribute('role') ||
+                     el.className?.toLowerCase() || '';
+        if (role.includes('user') || role.includes('human')) {
+          return `\n---\n\n**User:**\n\n${children}\n`;
+        }
+        if (role.includes('assistant') || role.includes('ai') || role.includes('bot')) {
+          return `\n**Assistant:**\n\n${children}\n`;
+        }
+        return children;
+      default:
+        return children;
+    }
+  };
+  
+  let markdown = processNode(doc.body);
+  
+  // Clean up excessive newlines
+  markdown = markdown.replace(/\n{3,}/g, '\n\n');
+  markdown = markdown.trim();
+  
+  return markdown;
+};
+
+export const generateExportMarkdown = (elements: SelectedElement[]): string => {
+  const header = `# Chat Export\n\nExported on: ${new Date().toLocaleString()}\nSource: ${window.location.href}\n\n---\n\n`;
+  
+  const content = elements.map(el => {
+    try {
+      return htmlToMarkdown(el.content);
+    } catch (err) {
+      console.warn('Error converting to markdown:', err);
+      // Fallback: strip HTML tags
+      const div = document.createElement('div');
+      div.innerHTML = el.content;
+      return div.textContent || '';
+    }
+  }).join('\n\n---\n\n');
+  
+  return header + content;
+};
+
 export const generateExportPDF = async (elements: SelectedElement[]): Promise<Blob> => {
   // Create a temporary container for rendering
-  // Use visibility hidden instead of off-screen positioning for html2canvas
+  // CRITICAL: Don't use fixed positioning or constrain height - let content flow naturally
   const tempContainer = document.createElement('div');
-  tempContainer.style.position = 'fixed';
+  tempContainer.style.position = 'absolute';
   tempContainer.style.top = '0';
-  tempContainer.style.left = '0';
-    tempContainer.style.width = '210mm'; // A4 width
-    tempContainer.style.maxWidth = '210mm';
-    tempContainer.style.minHeight = '100px'; // Ensure minimum height
-    tempContainer.style.padding = '40px';
-    // Set background to match content background
-    tempContainer.style.backgroundColor = 'transparent';
-  tempContainer.style.visibility = 'hidden';
-  tempContainer.style.opacity = '0';
+  tempContainer.style.left = '-9999px'; // Off-screen but still in document flow
+  tempContainer.style.width = '794px'; // A4 width at 96 DPI (210mm)
+  tempContainer.style.maxWidth = '794px';
+  tempContainer.style.minHeight = '100px';
+  tempContainer.style.padding = '40px';
+  tempContainer.style.backgroundColor = 'transparent';
   tempContainer.style.pointerEvents = 'none';
   tempContainer.style.zIndex = '-9999';
+  // CRITICAL: Allow content to expand to full height - no overflow constraints
   tempContainer.style.overflow = 'visible';
+  tempContainer.style.height = 'auto'; // Let it grow to fit all content
   tempContainer.style.display = 'block';
-  // Don't force white background - preserve original
   document.body.appendChild(tempContainer);
 
   try {
@@ -359,7 +458,6 @@ export const generateExportPDF = async (elements: SelectedElement[]): Promise<Bl
     // Extract CSS variables from the page
     const cssVariables: string[] = [];
     try {
-      const rootStyles = window.getComputedStyle(document.documentElement);
       const rootStyleSheet = Array.from(document.styleSheets);
       for (const sheet of rootStyleSheet) {
         try {
@@ -442,15 +540,20 @@ ${enhancedContent}
       throw new Error('No content to export');
     }
 
-    // Make container briefly visible for html2canvas (it needs to be in the render tree)
+    // Move container into view for html2canvas (it needs to be visible in render tree)
+    tempContainer.style.left = '0';
     tempContainer.style.visibility = 'visible';
     tempContainer.style.opacity = '1';
     
     // Force a reflow to ensure rendering
     void tempContainer.offsetHeight;
+    
+    // Get the actual content height after reflow
+    const contentHeight = tempContainer.scrollHeight;
+    console.log('Content height for PDF:', contentHeight);
 
     // Wait for images and fonts to load
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     // Get the computed background color from the first element or container
     let bgColor: string | null = null;
@@ -478,6 +581,7 @@ ${enhancedContent}
     console.log('Background color:', finalBgColor);
 
     // Convert to canvas - preserve the background color
+    // CRITICAL: Set windowHeight to match content to avoid clipping
     const canvas = await html2canvas(tempContainer, {
       backgroundColor: finalBgColor === '#ffffff' ? '#ffffff' : finalBgColor,
       scale: 2,
@@ -486,23 +590,53 @@ ${enhancedContent}
       allowTaint: true,
       foreignObjectRendering: true,
       removeContainer: false,
+      // CRITICAL: Set window dimensions to capture all content
+      windowWidth: 794,
+      windowHeight: Math.max(contentHeight + 100, window.innerHeight),
+      height: contentHeight + 50, // Capture full height
+      scrollX: 0,
+      scrollY: 0,
       onclone: (clonedDoc, element) => {
-        // Make sure the cloned element is visible
+        // Make sure the cloned element is visible and not constrained
         const clonedContainer = clonedDoc.querySelector('.ai-chat-export-item');
         if (clonedContainer) {
-          (clonedContainer as HTMLElement).style.display = 'block';
-          (clonedContainer as HTMLElement).style.visibility = 'visible';
-          (clonedContainer as HTMLElement).style.opacity = '1';
+          const el = clonedContainer as HTMLElement;
+          el.style.display = 'block';
+          el.style.visibility = 'visible';
+          el.style.opacity = '1';
+          el.style.height = 'auto';
+          el.style.maxHeight = 'none';
+          el.style.overflow = 'visible';
         }
-        // Ensure the main container is visible in clone
+        // Ensure the main container is visible and not constrained in clone
         if (element instanceof HTMLElement) {
           element.style.visibility = 'visible';
           element.style.opacity = '1';
+          element.style.height = 'auto';
+          element.style.maxHeight = 'none';
+          element.style.overflow = 'visible';
+          element.style.position = 'static'; // Remove positioning constraints
         }
+        // Also remove overflow constraints from any scrollable parents in clone
+        const allElements = clonedDoc.querySelectorAll('*');
+        allElements.forEach((el) => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.style) {
+            const computed = clonedDoc.defaultView?.getComputedStyle(htmlEl);
+            if (computed?.overflow === 'auto' || computed?.overflow === 'scroll' ||
+                computed?.overflowY === 'auto' || computed?.overflowY === 'scroll') {
+              htmlEl.style.overflow = 'visible';
+              htmlEl.style.overflowY = 'visible';
+              htmlEl.style.height = 'auto';
+              htmlEl.style.maxHeight = 'none';
+            }
+          }
+        });
       },
     });
 
-    // Hide container again
+    // Move container off-screen again
+    tempContainer.style.left = '-9999px';
     tempContainer.style.visibility = 'hidden';
     tempContainer.style.opacity = '0';
 
