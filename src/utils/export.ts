@@ -15,6 +15,356 @@ const getPageStyles = () => {
   return styles.join('\n');
 };
 
+// Simple syntax highlighting for common languages
+const highlightCode = (code: string, language: string): string => {
+  // Escape HTML first
+  let escaped = code
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  const lang = language.toLowerCase();
+  
+  // JSON highlighting - match ChatGPT's color scheme
+  if (lang === 'json') {
+    // Use a single regex to handle all strings, determining key vs value by context
+    escaped = escaped.replace(/"([^"\\]|\\.)*"/g, (match, _, offset, string) => {
+      // Check if this string is followed by a colon (making it a key)
+      const afterMatch = string.slice(offset + match.length);
+      const isKey = /^\s*:/.test(afterMatch);
+      if (isKey) {
+        // Key - pink/magenta like ChatGPT
+        return `<span style="color: #f472b6;">${match}</span>`;
+      } else {
+        // Value - green/teal like ChatGPT
+        return `<span style="color: #4ade80;">${match}</span>`;
+      }
+    });
+    // Numbers
+    escaped = escaped.replace(/\b(-?\d+\.?\d*)\b/g, '<span style="color: #b5cea8;">$1</span>');
+    // Booleans and null
+    escaped = escaped.replace(/\b(true|false|null)\b/g, '<span style="color: #569cd6;">$1</span>');
+  }
+  // JavaScript/TypeScript highlighting
+  else if (lang === 'javascript' || lang === 'js' || lang === 'typescript' || lang === 'ts') {
+    escaped = escaped
+      // Comments
+      .replace(/(\/\/.*$)/gm, '<span style="color: #6a9955;">$1</span>')
+      .replace(/(\/\*[\s\S]*?\*\/)/g, '<span style="color: #6a9955;">$1</span>')
+      // Strings
+      .replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*'|`([^`\\]|\\.)*`)/g, '<span style="color: #ce9178;">$1</span>')
+      // Keywords
+      .replace(/\b(const|let|var|function|return|if|else|for|while|class|import|export|from|async|await|try|catch|throw|new|this|typeof|instanceof)\b/g, '<span style="color: #569cd6;">$1</span>')
+      // Numbers
+      .replace(/\b(\d+\.?\d*)\b/g, '<span style="color: #b5cea8;">$1</span>');
+  }
+  // Python highlighting
+  else if (lang === 'python' || lang === 'py') {
+    escaped = escaped
+      // Comments
+      .replace(/(#.*$)/gm, '<span style="color: #6a9955;">$1</span>')
+      // Strings
+      .replace(/("""[\s\S]*?"""|'''[\s\S]*?'''|"([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, '<span style="color: #ce9178;">$1</span>')
+      // Keywords
+      .replace(/\b(def|class|if|elif|else|for|while|return|import|from|as|try|except|raise|with|lambda|True|False|None|and|or|not|in|is)\b/g, '<span style="color: #569cd6;">$1</span>')
+      // Numbers
+      .replace(/\b(\d+\.?\d*)\b/g, '<span style="color: #b5cea8;">$1</span>');
+  }
+  // Bash/Shell highlighting
+  else if (lang === 'bash' || lang === 'sh' || lang === 'shell' || lang === 'zsh') {
+    escaped = escaped
+      // Comments
+      .replace(/(#.*$)/gm, '<span style="color: #6a9955;">$1</span>')
+      // Strings
+      .replace(/("([^"\\]|\\.)*"|'[^']*')/g, '<span style="color: #ce9178;">$1</span>')
+      // Variables
+      .replace(/(\$\w+|\$\{[^}]+\})/g, '<span style="color: #9cdcfe;">$1</span>');
+  }
+  // HTML/XML highlighting
+  else if (lang === 'html' || lang === 'xml' || lang === 'svg') {
+    escaped = escaped
+      // Tags
+      .replace(/(&lt;\/?[\w-]+)/g, '<span style="color: #569cd6;">$1</span>')
+      // Attributes
+      .replace(/(\s[\w-]+)=/g, '<span style="color: #9cdcfe;">$1</span>=')
+      // Strings
+      .replace(/"([^"]*)"/g, '"<span style="color: #ce9178;">$1</span>"');
+  }
+  // CSS highlighting
+  else if (lang === 'css' || lang === 'scss' || lang === 'less') {
+    escaped = escaped
+      // Selectors
+      .replace(/^([^{]+)\{/gm, '<span style="color: #d7ba7d;">$1</span>{')
+      // Properties
+      .replace(/([\w-]+):/g, '<span style="color: #9cdcfe;">$1</span>:')
+      // Values with units
+      .replace(/:\s*([^;]+);/g, ': <span style="color: #ce9178;">$1</span>;');
+  }
+  
+  return escaped;
+};
+
+// Rebuild code blocks with plain text to bypass all CSS issues
+const rebuildCodeBlocks = (container: HTMLElement): void => {
+  // Find all pre elements and rebuild them with just the text content
+  container.querySelectorAll('pre').forEach((pre) => {
+    const preEl = pre as HTMLElement;
+    
+    // Try to detect the language from class names or sibling elements
+    let language = '';
+    const codeEl = preEl.querySelector('code');
+    
+    // Check for language in various places
+    const classesToCheck = [
+      codeEl?.className || '',
+      preEl.className || '',
+      preEl.closest('[class*="language-"]')?.className || '',
+      preEl.closest('[data-language]')?.getAttribute('data-language') || ''
+    ].join(' ');
+    
+    const langMatch = classesToCheck.match(/language-(\w+)|lang-(\w+)|hljs\s+(\w+)/);
+    if (langMatch) {
+      language = langMatch[1] || langMatch[2] || langMatch[3] || '';
+    }
+    
+    // Also check for language label in nearby elements (ChatGPT puts it in a span)
+    const codeBlockWrapper = preEl.closest('[class*="code"]') || preEl.parentElement;
+    if (codeBlockWrapper) {
+      const langSpan = codeBlockWrapper.querySelector('span');
+      if (langSpan && langSpan.textContent && langSpan.textContent.length < 20) {
+        const potentialLang = langSpan.textContent.toLowerCase().trim();
+        if (['json', 'javascript', 'js', 'python', 'py', 'bash', 'sh', 'html', 'css', 'typescript', 'ts', 'java', 'c', 'cpp', 'go', 'rust', 'sql', 'yaml', 'xml'].includes(potentialLang)) {
+          language = potentialLang;
+        }
+      }
+    }
+    
+    // Get code content - try to get just the code, not the toolbar
+    let textContent = '';
+    
+    // First, try to find just the code element (skip toolbar/buttons)
+    if (codeEl) {
+      textContent = codeEl.textContent || '';
+    } else {
+      // Clone and remove toolbar elements before getting text
+      const clone = preEl.cloneNode(true) as HTMLElement;
+      // Remove common toolbar selectors
+      clone.querySelectorAll('button, [class*="copy"], [class*="toolbar"], [class*="header"]').forEach(el => el.remove());
+      textContent = clone.textContent || '';
+    }
+    
+    // Clean up the text - remove "Copy code" artifacts and language labels at start
+    textContent = textContent
+      .replace(/^[\s]*Copy code[\s]*/i, '')
+      .replace(/^[\s]*Copy[\s]*/i, '')
+      .replace(/^(json|javascript|js|python|py|bash|sh|html|css|typescript|ts|java|cpp?|go|rust|sql|yaml|xml|shell|plaintext)[\s]*Copy code[\s]*/i, '')
+      .replace(/^(json|javascript|js|python|py|bash|sh|html|css|typescript|ts|java|cpp?|go|rust|sql|yaml|xml|shell|plaintext)[\s]*/i, '');
+    
+    // Skip if empty
+    if (!textContent.trim()) return;
+    
+    // Get background color from computed styles
+    const computedStyle = window.getComputedStyle(preEl);
+    let bgColor = computedStyle.backgroundColor;
+    // Default to dark theme if transparent
+    if (!bgColor || bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent') {
+      bgColor = '#1e1e1e';
+    }
+    
+    // Create a wrapper div for the code block
+    const wrapper = document.createElement('div');
+    wrapper.className = 'exported-code-wrapper';
+    wrapper.style.cssText = `
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 1em 0;
+      background-color: ${bgColor};
+    `;
+    
+    // Create subtle language badge
+    if (language) {
+      const badge = document.createElement('div');
+      badge.className = 'exported-code-lang';
+      badge.style.cssText = `
+        position: absolute;
+        top: 8px;
+        right: 12px;
+        font-size: 11px;
+        color: #6b7280;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 500;
+        text-transform: lowercase;
+        letter-spacing: 0.02em;
+        user-select: none;
+        pointer-events: none;
+      `;
+      badge.textContent = language;
+      wrapper.appendChild(badge);
+    }
+    
+    // Create a clean pre/code structure with syntax highlighting
+    const newPre = document.createElement('pre');
+    newPre.className = 'exported-code-block';
+    newPre.setAttribute('data-language', language);
+    newPre.style.cssText = `
+      background-color: ${bgColor};
+      color: #d4d4d4;
+      padding: 1em;
+      margin: 0;
+      overflow: visible;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      word-break: break-word;
+      font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    `;
+    
+    const newCode = document.createElement('code');
+    newCode.style.cssText = `
+      display: block;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow: visible;
+      font-family: inherit;
+    `;
+    
+    // Apply syntax highlighting
+    if (language) {
+      newCode.innerHTML = highlightCode(textContent, language);
+    } else {
+      newCode.textContent = textContent;
+    }
+    
+    newPre.appendChild(newCode);
+    wrapper.appendChild(newPre);
+    
+    // Replace the old pre with the new wrapper
+    // Need to find the right element to replace (might be a wrapper div)
+    const codeWrapper = preEl.closest('[class*="code-block"], [class*="codeblock"], [class*="highlight"]');
+    if (codeWrapper && codeWrapper.parentNode) {
+      codeWrapper.parentNode.replaceChild(wrapper, codeWrapper);
+    } else if (preEl.parentNode) {
+      preEl.parentNode.replaceChild(wrapper, preEl);
+    }
+  });
+  
+  // Also fix any divs that might still have overflow issues
+  container.querySelectorAll('div:not(.exported-code-wrapper):not(.exported-code-header)').forEach((el) => {
+    const htmlEl = el as HTMLElement;
+    htmlEl.style.overflow = 'visible';
+    htmlEl.style.overflowX = 'visible';
+    htmlEl.style.maxHeight = 'none';
+  });
+};
+
+// Legacy function name for compatibility
+const fixCodeBlocks = rebuildCodeBlocks;
+
+// Filter out common header/footer UI elements that shouldn't be in exports
+const filterNonConversationElements = (container: HTMLElement): void => {
+  // Selectors for specific UI elements to remove (be careful not to remove content containers!)
+  const selectorsToRemove = [
+    // ChatGPT specific - target specific elements, not broad class patterns
+    '[data-testid="model-switcher-dropdown-button"]',
+    '[data-testid="share-chat-button"]',
+    '[data-testid="start-group-chat-from-conversation-button"]',
+    '[data-testid="conversation-options-button"]',
+    '[data-testid="copy-turn-action-button"]',
+    '[data-testid="good-response-turn-action-button"]',
+    '[data-testid="bad-response-turn-action-button"]',
+    '#page-header', // ChatGPT header
+    '#thread-bottom-container', // ChatGPT input area
+    '#thread-bottom',
+    // Claude specific
+    '[class*="ConversationHeader"]',
+    '[class*="MessageInput"]',
+    // Generic header/footer/nav elements
+    'header#page-header',
+    'footer',
+    'nav',
+    '[role="navigation"]',
+    '[role="contentinfo"]',
+    // Input forms (but not the whole page)
+    'form[class*="composer"]',
+    'textarea',
+    '[contenteditable="true"]',
+  ];
+
+  // Text patterns for footer disclaimer - be very specific
+  const footerPatterns = [
+    /^ChatGPT can make mistakes\.?\s*Check important info\.?$/i,
+    /^Claude can make mistakes\.?\s*Please double-check/i,
+  ];
+
+  // Remove elements by selector
+  selectorsToRemove.forEach(selector => {
+    try {
+      container.querySelectorAll(selector).forEach(el => {
+        // Don't remove if it contains substantial conversation content
+        const text = el.textContent || '';
+        if (text.length < 500) { // Only remove if relatively short (likely UI element)
+          el.remove();
+        }
+      });
+    } catch (e) {
+      // Invalid selector, skip
+    }
+  });
+  
+  // Remove UI buttons with specific aria-labels (be precise, don't remove all buttons)
+  const uiAriaLabels = [
+    'Copy', 'Edit message', 'Good response', 'Bad response', 
+    'More actions', 'Share', 'Model selector'
+  ];
+  uiAriaLabels.forEach(label => {
+    container.querySelectorAll(`[aria-label="${label}"], [aria-label^="${label}"]`).forEach(el => {
+      el.remove();
+    });
+  });
+
+  // Remove footer disclaimer text
+  const removeFooterText = (element: Element) => {
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_ELEMENT,
+      null
+    );
+    
+    const toRemove: Element[] = [];
+    let node: Element | null;
+    while ((node = walker.nextNode() as Element | null)) {
+      const text = node.textContent?.trim() || '';
+      // Only match exact footer disclaimer patterns
+      for (const pattern of footerPatterns) {
+        if (pattern.test(text) && text.length < 100) {
+          toRemove.push(node);
+          break;
+        }
+      }
+    }
+    
+    toRemove.forEach(el => el.remove());
+  };
+  
+  removeFooterText(container);
+
+  // Remove small SVG icons (likely UI icons, not content)
+  container.querySelectorAll('svg').forEach(svg => {
+    // Keep SVGs inside code blocks or that are large (diagrams)
+    const isInCode = svg.closest('pre, code');
+    const width = svg.getAttribute('width');
+    const height = svg.getAttribute('height');
+    const isSmall = (width && parseInt(width) <= 24) || (height && parseInt(height) <= 24);
+    
+    if (!isInCode && isSmall) {
+      svg.remove();
+    }
+  });
+};
+
 // Enhance element HTML with stored computed styles or find original element
 const enhanceElementWithStyles = (element: SelectedElement): string => {
   // First, try to find the original element in the DOM
@@ -41,12 +391,79 @@ const enhanceElementWithStyles = (element: SelectedElement): string => {
   if (originalElement) {
     const clone = originalElement.cloneNode(true) as HTMLElement;
     
+    // Filter out header/footer UI elements before processing
+    filterNonConversationElements(clone);
+    
+    // Fix code blocks first to ensure all content is visible
+    fixCodeBlocks(clone);
+    
+    // First, capture user message bubble styles from the ORIGINAL element (before cloning)
+    // since CSS classes may not work on detached elements
+    const originalUserBubbles = originalElement.querySelectorAll('.user-message-bubble-color');
+    const userBubbleStyles = new Map<string, { bg: string; color: string }>();
+    originalUserBubbles.forEach((bubble, index) => {
+      const computed = window.getComputedStyle(bubble as HTMLElement);
+      const bgColor = computed.backgroundColor;
+      const textColor = computed.color;
+      userBubbleStyles.set(`bubble-${index}`, {
+        bg: bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent' ? bgColor : '',
+        color: textColor || ''
+      });
+    });
+    
+    // Apply captured styles to cloned bubbles and their children
+    const clonedUserBubbles = clone.querySelectorAll('.user-message-bubble-color');
+    clonedUserBubbles.forEach((bubble, index) => {
+      const styles = userBubbleStyles.get(`bubble-${index}`);
+      if (styles) {
+        const el = bubble as HTMLElement;
+        if (styles.bg) {
+          el.style.backgroundColor = styles.bg;
+        }
+        // Apply text color to bubble and all children
+        const textColor = styles.color || '#ffffff'; // Default to white for readability
+        el.style.color = textColor;
+        el.querySelectorAll('*').forEach(child => {
+          (child as HTMLElement).style.color = textColor;
+        });
+      }
+    });
+    
     // Recursively apply computed styles as inline styles
     const applyComputedStyles = (el: HTMLElement) => {
       const computed = window.getComputedStyle(el);
       const inlineStyle = el.getAttribute('style') || '';
+      const tagName = el.tagName.toLowerCase();
       
-          // Important visual properties to preserve
+      // Check element types for special handling
+      const isPre = tagName === 'pre';
+      const isCodeInPre = tagName === 'code' && el.parentElement?.tagName.toLowerCase() === 'pre';
+      const isSpanInCode = tagName === 'span' && el.closest('pre, code');
+      
+      // SKIP applying most styles to spans inside code - preserve syntax highlighting colors
+      if (isSpanInCode) {
+        // For syntax highlighting spans, preserve existing inline color if set (from highlightCode)
+        const existingStyle = el.getAttribute('style') || '';
+        // Check for valid color value (hex, rgb, named colors)
+        const colorMatch = existingStyle.match(/color:\s*(#[0-9a-fA-F]{3,8}|rgb\([^)]+\)|[a-z]+)/i);
+        
+        if (!colorMatch) {
+          // Only set color if not already set by highlighting
+          const computedColor = computed.color;
+          if (computedColor && computedColor !== 'rgba(0, 0, 0, 0)') {
+            el.setAttribute('style', `color: ${computedColor}`);
+          }
+        }
+        // If inline color exists, leave it alone - don't touch it!
+        
+        // Process children
+        Array.from(el.children).forEach(child => {
+          applyComputedStyles(child as HTMLElement);
+        });
+        return;
+      }
+      
+      // Important visual properties to preserve (for non-span elements)
           const styleProps: { [key: string]: string } = {
             color: computed.color,
             backgroundColor: computed.backgroundColor,
@@ -72,11 +489,11 @@ const enhanceElementWithStyles = (element: SelectedElement): string => {
             borderBottom: computed.borderBottom,
             borderLeft: computed.borderLeft,
             borderRadius: computed.borderRadius,
-            display: computed.display,
+        display: (isPre || isCodeInPre) ? 'block' : computed.display,
             flexDirection: computed.flexDirection,
             gap: computed.gap,
-            width: computed.width,
-            maxWidth: computed.maxWidth,
+        width: (isPre || isCodeInPre) ? 'auto' : computed.width,
+        maxWidth: (isPre || isCodeInPre) ? '100%' : computed.maxWidth,
             minWidth: computed.minWidth,
             textAlign: computed.textAlign,
             opacity: computed.opacity,
@@ -138,6 +555,9 @@ const enhanceElementWithStyles = (element: SelectedElement): string => {
       const rootEl = doc.body.firstElementChild as HTMLElement;
       
       if (rootEl) {
+        // Filter out header/footer UI elements
+        filterNonConversationElements(rootEl);
+        
         const styleString = Object.entries(element.computedStyles)
           .map(([prop, value]) => {
             const kebabProp = prop.replace(/([A-Z])/g, '-$1').toLowerCase();
@@ -154,7 +574,18 @@ const enhanceElementWithStyles = (element: SelectedElement): string => {
     }
   }
   
-  // Final fallback: return original content
+  // Final fallback: parse and filter the original content
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(element.content, 'text/html');
+    const rootEl = doc.body.firstElementChild as HTMLElement;
+    if (rootEl) {
+      filterNonConversationElements(rootEl);
+      return rootEl.outerHTML;
+    }
+  } catch (e) {
+    // If parsing fails, return as-is
+  }
   return element.content;
 };
 
@@ -181,41 +612,46 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
       : '#ffffff';
 
   return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
+    <html>
+    <head>
+      <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat Export - ${new Date().toLocaleDateString()}</title>
-  <base href="${window.location.origin}">
-  ${styles}
-  <style>
-    :root {
-      /* Preserve CSS variables from the original page */
-    }
-    * {
-      box-sizing: border-box;
-    }
+      <base href="${window.location.origin}">
+      <!-- Google Fonts -->
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+      ${styles}
+      <style>
+        :root {
+          /* Preserve CSS variables from the original page */
+        }
+        * {
+          box-sizing: border-box;
+        }
     html, body {
       margin: 0;
       padding: 0;
       background-color: ${bgColor};
-    }
-    body { 
-      padding: 40px; 
-      max-width: 1200px; 
-      margin: 0 auto; 
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 1.6;
+        }
+        body { 
+          padding: 40px; 
+          max-width: 1200px; 
+          margin: 0 auto; 
+          font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          line-height: 1.6;
+          font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     }
     .ai-chat-export-wrapper {
       /* Remove all overflow constraints for printing */
       overflow: visible !important;
       height: auto !important;
       max-height: none !important;
-    }
-    .ai-chat-export-item {
-      position: relative;
-      margin-bottom: 30px;
+        }
+        .ai-chat-export-item {
+          position: relative;
+          margin-bottom: 30px;
       /* Remove overflow constraints */
       overflow: visible !important;
       height: auto !important;
@@ -227,67 +663,339 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
       max-height: none !important;
     }
     /* But allow specific elements to maintain scroll behavior if needed */
-    .ai-chat-export-item pre,
-    .ai-chat-export-item code {
-      overflow-x: auto !important;
+    /* Rebuilt code blocks - clean styling */
+    .ai-chat-export-item .exported-code-wrapper {
+      position: relative !important;
+      border-radius: 8px !important;
+      overflow: hidden !important;
+      margin: 1em 0 !important;
     }
-    @media print {
+    .ai-chat-export-item .exported-code-lang {
+      position: absolute !important;
+      top: 8px !important;
+      right: 12px !important;
+      font-size: 11px !important;
+      color: #6b7280 !important;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-weight: 500 !important;
+      text-transform: lowercase !important;
+      user-select: none !important;
+      pointer-events: none !important;
+    }
+    .ai-chat-export-item pre.exported-code-block {
+      overflow: visible !important;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      word-break: break-word !important;
+      max-width: 100% !important;
+      padding: 1em !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace !important;
+      font-size: 13px !important;
+      line-height: 1.6 !important;
+      color: #d4d4d4 !important;
+    }
+    .ai-chat-export-item pre.exported-code-block code {
+      display: block !important;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      overflow: visible !important;
+      font-family: inherit !important;
+    }
+    /* AGGRESSIVE: Remove overflow from ALL elements that might contain code */
+    .ai-chat-export-item [class*="code"],
+    .ai-chat-export-item [class*="Code"],
+    .ai-chat-export-item [class*="highlight"],
+    .ai-chat-export-item [class*="Highlight"],
+    .ai-chat-export-item [class*="markdown"],
+    .ai-chat-export-item [class*="Markdown"] {
+      overflow: visible !important;
+      overflow-x: visible !important;
+      overflow-y: visible !important;
+      max-height: none !important;
+      max-width: 100% !important;
+    }
+    /* Code block styling - ensure all content is visible */
+    .ai-chat-export-item pre {
+      overflow: visible !important;
+      overflow-x: visible !important;
+      overflow-y: visible !important;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      word-break: break-word !important;
+      max-height: none !important;
+      height: auto !important;
+      width: auto !important;
+      max-width: 100% !important;
+      padding: 1em !important;
+      margin: 0.5em 0 !important;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace !important;
+      font-size: 13px !important;
+      line-height: 1.6 !important;
+      tab-size: 2;
+    }
+    .ai-chat-export-item code {
+      font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace !important;
+      font-size: inherit !important;
+      overflow: visible !important;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+    }
+    .ai-chat-export-item pre > code,
+    .ai-chat-export-item pre code {
+      overflow: visible !important;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      word-break: break-word !important;
+      display: block !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      background: transparent !important;
+      max-width: 100% !important;
+    }
+    /* CRITICAL: Keep syntax highlighting spans inline and remove width constraints */
+    .ai-chat-export-item pre span,
+    .ai-chat-export-item pre code span,
+    .ai-chat-export-item code span {
+      display: inline !important;
+      white-space: inherit !important;
+      width: auto !important;
+      max-width: none !important;
+      min-width: auto !important;
+      overflow: visible !important;
+    }
+    /* Inline code */
+    .ai-chat-export-item :not(pre) > code {
+      padding: 0.2em 0.4em !important;
+      border-radius: 3px !important;
+      white-space: pre-wrap !important;
+      word-break: break-word !important;
+    }
+    /* Fix ALL divs inside the export that might have overflow */
+    .ai-chat-export-item div {
+      overflow: visible !important;
+      overflow-x: visible !important;
+      max-height: none !important;
+        }
+        @media print {
       html, body {
         background-color: ${bgColor} !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
         color-adjust: exact !important;
       }
-      body {
-        padding: 20px;
-      }
-      .ai-chat-export-item {
+          body {
+            padding: 20px;
+          }
+          .ai-chat-export-item {
         break-inside: auto;
         page-break-inside: auto;
       }
       /* Allow page breaks in long conversations */
       .ai-chat-export-item > * {
-        break-inside: avoid;
-        page-break-inside: avoid;
-      }
-    }
-    img {
-      max-width: 100%;
-      height: auto;
-    }
-    pre, code {
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-  </style>
-</head>
-<body>
-  <div class="ai-chat-export-wrapper">
-    <div class="ai-chat-export-item">
-      ${enhancedContent}
-    </div>
-  </div>
-  <script>
-    // Fix image sources to use absolute URLs
-    document.querySelectorAll('img').forEach(img => {
-      if (img.src && !img.src.startsWith('http')) {
-        try {
-          const absoluteUrl = new URL(img.src, window.location.href).href;
-          img.src = absoluteUrl;
-        } catch (e) {
-          console.warn('Could not fix image URL:', img.src);
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
         }
-      }
-    });
-    // Remove overflow constraints from scrollable elements
-    document.querySelectorAll('[style*="overflow"]').forEach(el => {
-      el.style.overflow = 'visible';
-      el.style.overflowY = 'visible';
-      el.style.maxHeight = 'none';
-      el.style.height = 'auto';
-    });
-  </script>
-</body>
+        img {
+          max-width: 100%;
+          height: auto;
+        }
+        pre, code {
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+      </style>
+    </head>
+    <body>
+  <div class="ai-chat-export-wrapper">
+      <div class="ai-chat-export-item">
+        ${enhancedContent}
+    </div>
+      </div>
+      <script>
+        // Syntax highlighting for common languages
+        const highlightCode = (code, language) => {
+          let escaped = code
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          
+          const lang = (language || '').toLowerCase();
+          
+          // JSON highlighting - match ChatGPT's color scheme
+          if (lang === 'json') {
+            escaped = escaped.replace(/"([^"\\\\\\\\]|\\\\\\\\.)*"/g, function(match, _, offset, string) {
+              var afterMatch = string.slice(offset + match.length);
+              var isKey = /^\\s*:/.test(afterMatch);
+              if (isKey) {
+                return '<span style="color: #f472b6;">' + match + '</span>';
+              } else {
+                return '<span style="color: #4ade80;">' + match + '</span>';
+              }
+            });
+            escaped = escaped.replace(/\\b(-?\\d+\\.?\\d*)\\b/g, '<span style="color: #b5cea8;">$1</span>');
+            escaped = escaped.replace(/\\b(true|false|null)\\b/g, '<span style="color: #569cd6;">$1</span>');
+          }
+          // JavaScript/TypeScript highlighting
+          else if (['javascript', 'js', 'typescript', 'ts'].includes(lang)) {
+            escaped = escaped
+              .replace(/(\\/\\/.*$)/gm, '<span style="color: #6a9955;">$1</span>')
+              .replace(/(\\/\\*[\\s\\S]*?\\*\\/)/g, '<span style="color: #6a9955;">$1</span>')
+              .replace(/("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*'|\`([^\`\\\\]|\\\\.)*\`)/g, '<span style="color: #ce9178;">$1</span>')
+              .replace(/\\b(const|let|var|function|return|if|else|for|while|class|import|export|from|async|await|try|catch|throw|new|this|typeof|instanceof)\\b/g, '<span style="color: #569cd6;">$1</span>')
+              .replace(/\\b(\\d+\\.?\\d*)\\b/g, '<span style="color: #b5cea8;">$1</span>');
+          }
+          // Python highlighting
+          else if (['python', 'py'].includes(lang)) {
+            escaped = escaped
+              .replace(/(#.*$)/gm, '<span style="color: #6a9955;">$1</span>')
+              .replace(/("""[\\s\\S]*?"""|\'\'\'[\\s\\S]*?\'\'\'|"([^"\\\\]|\\\\.)*"|\'([^\'\\\\]|\\\\.)*\')/g, '<span style="color: #ce9178;">$1</span>')
+              .replace(/\\b(def|class|if|elif|else|for|while|return|import|from|as|try|except|raise|with|lambda|True|False|None|and|or|not|in|is)\\b/g, '<span style="color: #569cd6;">$1</span>')
+              .replace(/\\b(\\d+\\.?\\d*)\\b/g, '<span style="color: #b5cea8;">$1</span>');
+          }
+          // Bash/Shell highlighting
+          else if (['bash', 'sh', 'shell', 'zsh'].includes(lang)) {
+            escaped = escaped
+              .replace(/(#.*$)/gm, '<span style="color: #6a9955;">$1</span>')
+              .replace(/("([^"\\\\]|\\\\.)*"|\'[^\']*\')/g, '<span style="color: #ce9178;">$1</span>')
+              .replace(/(\\$\\w+|\\$\\{[^}]+\\})/g, '<span style="color: #9cdcfe;">$1</span>');
+          }
+          // HTML/XML highlighting
+          else if (['html', 'xml', 'svg'].includes(lang)) {
+            escaped = escaped
+              .replace(/(&lt;\\/?[\\w-]+)/g, '<span style="color: #569cd6;">$1</span>')
+              .replace(/(\\s[\\w-]+)=/g, '<span style="color: #9cdcfe;">$1</span>=')
+              .replace(/"([^"]*)"/g, '"<span style="color: #ce9178;">$1</span>"');
+          }
+          // CSS highlighting
+          else if (['css', 'scss', 'less'].includes(lang)) {
+            escaped = escaped
+              .replace(/^([^{]+)\\{/gm, '<span style="color: #d7ba7d;">$1</span>{')
+              .replace(/([\\w-]+):/g, '<span style="color: #9cdcfe;">$1</span>:')
+              .replace(/:\\s*([^;]+);/g, ': <span style="color: #ce9178;">$1</span>;');
+          }
+          // SQL highlighting
+          else if (lang === 'sql') {
+            escaped = escaped
+              .replace(/(--.*$)/gm, '<span style="color: #6a9955;">$1</span>')
+              .replace(/('([^'\\\\]|\\\\.)*')/g, '<span style="color: #ce9178;">$1</span>')
+              .replace(/\\b(SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TABLE|INDEX|JOIN|LEFT|RIGHT|INNER|OUTER|ON|AND|OR|NOT|NULL|AS|ORDER|BY|GROUP|HAVING|LIMIT|OFFSET|UNION|DISTINCT|INTO|VALUES|SET)\\b/gi, '<span style="color: #569cd6;">$&</span>')
+              .replace(/\\b(\\d+\\.?\\d*)\\b/g, '<span style="color: #b5cea8;">$1</span>');
+          }
+          
+          return escaped;
+        };
+
+        // Fix image sources to use absolute URLs
+        document.querySelectorAll('img').forEach(img => {
+          if (img.src && !img.src.startsWith('http')) {
+            try {
+              const absoluteUrl = new URL(img.src, window.location.href).href;
+              img.src = absoluteUrl;
+            } catch (e) {
+              console.warn('Could not fix image URL:', img.src);
+            }
+          }
+        });
+    
+        // Code blocks - rebuild any that weren't processed
+        document.querySelectorAll('pre:not(.exported-code-block)').forEach(pre => {
+          // Try to detect language
+          let language = '';
+          const codeEl = pre.querySelector('code');
+          const classesToCheck = [
+            codeEl?.className || '',
+            pre.className || '',
+            pre.closest('[class*="language-"]')?.className || '',
+            pre.closest('[data-language]')?.getAttribute('data-language') || ''
+          ].join(' ');
+          
+          const langMatch = classesToCheck.match(/language-(\\w+)|lang-(\\w+)|hljs\\s+(\\w+)/);
+          if (langMatch) {
+            language = langMatch[1] || langMatch[2] || langMatch[3] || '';
+          }
+          
+          // Also check for language label in nearby elements
+          const codeBlockWrapper = pre.closest('[class*="code"]') || pre.parentElement;
+          if (codeBlockWrapper && !language) {
+            const langSpan = codeBlockWrapper.querySelector('span');
+            if (langSpan && langSpan.textContent && langSpan.textContent.length < 20) {
+              const potentialLang = langSpan.textContent.toLowerCase().trim();
+              const knownLangs = ['json', 'javascript', 'js', 'python', 'py', 'bash', 'sh', 'html', 'css', 'typescript', 'ts', 'java', 'c', 'cpp', 'go', 'rust', 'sql', 'yaml', 'xml', 'shell'];
+              if (knownLangs.includes(potentialLang)) {
+                language = potentialLang;
+              }
+            }
+          }
+          
+          let textContent = codeEl ? codeEl.textContent : pre.textContent;
+          textContent = (textContent || '').trim();
+          if (!textContent) return;
+          
+          // Clean up toolbar artifacts
+          textContent = textContent
+            .replace(/^[\\s]*Copy code[\\s]*/i, '')
+            .replace(/^[\\s]*Copy[\\s]*/i, '')
+            .replace(/^(json|javascript|js|python|py|bash|sh|html|css|typescript|ts|java|cpp?|go|rust|sql|yaml|xml|shell|plaintext)[\\s]*Copy[\\s]*/i, '')
+            .replace(/^(json|javascript|js|python|py|bash|sh|html|css|typescript|ts|java|cpp?|go|rust|sql|yaml|xml|shell|plaintext)[\\s]*/i, '');
+          
+          const computedStyle = window.getComputedStyle(pre);
+          let bgColor = computedStyle.backgroundColor;
+          if (!bgColor || bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent') {
+            bgColor = '#1e1e1e';
+          }
+          
+          // Create wrapper
+          const wrapper = document.createElement('div');
+          wrapper.className = 'exported-code-wrapper';
+          wrapper.style.cssText = 'position: relative; border-radius: 8px; overflow: hidden; margin: 1em 0; background-color: ' + bgColor + ';';
+          
+          // Add subtle language badge
+          if (language) {
+            const badge = document.createElement('div');
+            badge.className = 'exported-code-lang';
+            badge.style.cssText = 'position: absolute; top: 8px; right: 12px; font-size: 11px; color: #6b7280; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 500; text-transform: lowercase; letter-spacing: 0.02em; user-select: none; pointer-events: none;';
+            badge.textContent = language;
+            wrapper.appendChild(badge);
+          }
+          
+          const newPre = document.createElement('pre');
+          newPre.className = 'exported-code-block';
+          newPre.setAttribute('data-language', language);
+          newPre.style.cssText = 'background-color: ' + bgColor + '; color: #d4d4d4; padding: 1em; margin: 0; overflow: visible; white-space: pre-wrap; word-wrap: break-word; word-break: break-word; font-family: "JetBrains Mono", "SF Mono", "Fira Code", Menlo, Monaco, Consolas, monospace; font-size: 13px; line-height: 1.6;';
+          
+          const newCode = document.createElement('code');
+          newCode.style.cssText = 'display: block; white-space: pre-wrap; word-wrap: break-word; word-break: break-word; overflow: visible; font-family: inherit;';
+          
+          // Apply syntax highlighting
+          if (language) {
+            newCode.innerHTML = highlightCode(textContent, language);
+          } else {
+            newCode.textContent = textContent;
+          }
+          
+          newPre.appendChild(newCode);
+          wrapper.appendChild(newPre);
+          
+          // Replace the old element
+          const existingWrapper = pre.closest('[class*="code-block"], [class*="codeblock"], [class*="highlight"]');
+          if (existingWrapper && existingWrapper.parentNode) {
+            existingWrapper.parentNode.replaceChild(wrapper, existingWrapper);
+          } else if (pre.parentNode) {
+            pre.parentNode.replaceChild(wrapper, pre);
+          }
+        });
+    
+        // Fix any remaining overflow issues
+        document.querySelectorAll('div:not(.exported-code-wrapper):not(.exported-code-header)').forEach(div => {
+          div.style.overflow = 'visible';
+          div.style.maxHeight = 'none';
+        });
+      </script>
+    </body>
 </html>`;
 };
 
@@ -460,8 +1168,8 @@ export const generateExportPDF = async (elements: SelectedElement[]): Promise<Bl
   tempContainer.style.width = '794px'; // A4 width at 96 DPI (210mm)
   tempContainer.style.maxWidth = '794px';
   tempContainer.style.minHeight = '100px';
-  tempContainer.style.padding = '40px';
-  tempContainer.style.backgroundColor = 'transparent';
+    tempContainer.style.padding = '40px';
+    tempContainer.style.backgroundColor = 'transparent';
   tempContainer.style.pointerEvents = 'none';
   tempContainer.style.zIndex = '-9999';
   // CRITICAL: Allow content to expand to full height - no overflow constraints
@@ -554,9 +1262,32 @@ ${cssVariables.join('\n')}
           height: auto;
           display: block;
         }
-        pre, code {
+        pre {
+          overflow: visible !important;
+          white-space: pre-wrap !important;
+          word-wrap: break-word !important;
+          word-break: break-word !important;
+          max-height: none !important;
+          height: auto !important;
+          max-width: 100% !important;
+          font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace !important;
+        }
+        pre > code {
+          overflow: visible !important;
+          white-space: inherit !important;
+          display: block !important;
+        }
+        /* CRITICAL: Keep syntax spans inline and remove width constraints */
+        pre span, code span {
+          display: inline !important;
+          white-space: inherit !important;
+          width: auto !important;
+          max-width: none !important;
+        }
+        code {
           white-space: pre-wrap;
           word-wrap: break-word;
+          font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
         }
         /* Ensure text is visible */
         * {
@@ -580,6 +1311,9 @@ ${enhancedContent}
         }
       }
     });
+    
+    // Fix code blocks for PDF rendering
+    fixCodeBlocks(tempContainer);
 
     // Verify content exists
     const contentElement = tempContainer.querySelector('.ai-chat-export-item');
@@ -787,14 +1521,14 @@ const downloadBlobWithPicker = async (blob: Blob, filename: string, description:
   }
   
   // Fallback: traditional download
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   return true;
 };
 
