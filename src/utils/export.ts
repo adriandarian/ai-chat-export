@@ -182,7 +182,7 @@ const rebuildCodeBlocks = (container: HTMLElement): void => {
       background-color: ${bgColor};
     `;
     
-    // Create subtle language badge
+    // Create subtle language badge in top-right corner
     if (language) {
       const badge = document.createElement('div');
       badge.className = 'exported-code-lang';
@@ -211,8 +211,10 @@ const rebuildCodeBlocks = (container: HTMLElement): void => {
       background-color: ${bgColor};
       color: #d4d4d4;
       padding: 1em;
+      padding-top: ${language ? '2em' : '1em'};
       margin: 0;
-      overflow: visible;
+      overflow-x: auto;
+      overflow-y: visible;
       white-space: pre-wrap;
       word-wrap: break-word;
       word-break: break-word;
@@ -243,9 +245,9 @@ const rebuildCodeBlocks = (container: HTMLElement): void => {
     
     // Replace the old pre with the new wrapper
     // Need to find the right element to replace (might be a wrapper div)
-    const codeWrapper = preEl.closest('[class*="code-block"], [class*="codeblock"], [class*="highlight"]');
-    if (codeWrapper && codeWrapper.parentNode) {
-      codeWrapper.parentNode.replaceChild(wrapper, codeWrapper);
+    const existingCodeWrapper = preEl.closest('[class*="code-block"], [class*="codeblock"], [class*="highlight"]');
+    if (existingCodeWrapper && existingCodeWrapper.parentNode) {
+      existingCodeWrapper.parentNode.replaceChild(wrapper, existingCodeWrapper);
     } else if (preEl.parentNode) {
       preEl.parentNode.replaceChild(wrapper, preEl);
     }
@@ -679,11 +681,13 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
       font-weight: 500 !important;
       text-transform: lowercase !important;
+      letter-spacing: 0.02em !important;
       user-select: none !important;
       pointer-events: none !important;
     }
     .ai-chat-export-item pre.exported-code-block {
-      overflow: visible !important;
+      overflow-x: auto !important;
+      overflow-y: visible !important;
       white-space: pre-wrap !important;
       word-wrap: break-word !important;
       word-break: break-word !important;
@@ -716,8 +720,8 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
       max-height: none !important;
       max-width: 100% !important;
     }
-    /* Code block styling - ensure all content is visible */
-    .ai-chat-export-item pre {
+    /* Code block styling - fallback for non-rebuilt code blocks */
+    .ai-chat-export-item pre:not(.exported-code-block) {
       overflow: visible !important;
       overflow-x: visible !important;
       overflow-y: visible !important;
@@ -740,11 +744,9 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
       font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace !important;
       font-size: inherit !important;
       overflow: visible !important;
-      white-space: pre-wrap !important;
-      word-wrap: break-word !important;
     }
-    .ai-chat-export-item pre > code,
-    .ai-chat-export-item pre code {
+    .ai-chat-export-item pre:not(.exported-code-block) > code,
+    .ai-chat-export-item pre:not(.exported-code-block) code {
       overflow: visible !important;
       white-space: pre-wrap !important;
       word-wrap: break-word !important;
@@ -965,7 +967,7 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
           const newPre = document.createElement('pre');
           newPre.className = 'exported-code-block';
           newPre.setAttribute('data-language', language);
-          newPre.style.cssText = 'background-color: ' + bgColor + '; color: #d4d4d4; padding: 1em; margin: 0; overflow: visible; white-space: pre-wrap; word-wrap: break-word; word-break: break-word; font-family: "JetBrains Mono", "SF Mono", "Fira Code", Menlo, Monaco, Consolas, monospace; font-size: 13px; line-height: 1.6;';
+          newPre.style.cssText = 'background-color: ' + bgColor + '; color: #d4d4d4; padding: 1em; padding-top: ' + (language ? '2em' : '1em') + '; margin: 0; overflow-x: auto; overflow-y: visible; white-space: pre-wrap; word-wrap: break-word; word-break: break-word; font-family: "JetBrains Mono", "SF Mono", "Fira Code", Menlo, Monaco, Consolas, monospace; font-size: 13px; line-height: 1.6;';
           
           const newCode = document.createElement('code');
           newCode.style.cssText = 'display: block; white-space: pre-wrap; word-wrap: break-word; word-break: break-word; overflow: visible; font-family: inherit;';
