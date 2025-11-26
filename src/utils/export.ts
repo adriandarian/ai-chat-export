@@ -46,39 +46,75 @@ const highlightCode = (code: string, language: string): string => {
     escaped = escaped.replace(/\b(true|false|null)\b/g, '<span style="color: #569cd6;">$1</span>');
   }
   // JavaScript/TypeScript highlighting
+  // IMPORTANT: Order matters! Strings first, then keywords/numbers, then comments last
+  // This prevents the string regex from matching quotes inside our span attributes
   else if (lang === 'javascript' || lang === 'js' || lang === 'typescript' || lang === 'ts') {
+    // First, mark comments with a placeholder to protect them
+    const commentPlaceholders: string[] = [];
+    escaped = escaped.replace(/(\/\/.*$)/gm, (match) => {
+      commentPlaceholders.push(match);
+      return `__COMMENT_${commentPlaceholders.length - 1}__`;
+    });
+    escaped = escaped.replace(/(\/\*[\s\S]*?\*\/)/g, (match) => {
+      commentPlaceholders.push(match);
+      return `__COMMENT_${commentPlaceholders.length - 1}__`;
+    });
+    
+    // Now apply other highlighting safely
     escaped = escaped
-      // Comments
-      .replace(/(\/\/.*$)/gm, '<span style="color: #6a9955;">$1</span>')
-      .replace(/(\/\*[\s\S]*?\*\/)/g, '<span style="color: #6a9955;">$1</span>')
       // Strings
       .replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*'|`([^`\\]|\\.)*`)/g, '<span style="color: #ce9178;">$1</span>')
       // Keywords
       .replace(/\b(const|let|var|function|return|if|else|for|while|class|import|export|from|async|await|try|catch|throw|new|this|typeof|instanceof)\b/g, '<span style="color: #569cd6;">$1</span>')
-      // Numbers
-      .replace(/\b(\d+\.?\d*)\b/g, '<span style="color: #b5cea8;">$1</span>');
+      // Numbers (but not inside words)
+      .replace(/(?<![a-zA-Z_])\b(\d+\.?\d*)\b/g, '<span style="color: #b5cea8;">$1</span>');
+    
+    // Restore comments with highlighting
+    escaped = escaped.replace(/__COMMENT_(\d+)__/g, (_, index) => {
+      return `<span style="color: #6a9955;">${commentPlaceholders[parseInt(index)]}</span>`;
+    });
   }
   // Python highlighting
   else if (lang === 'python' || lang === 'py') {
+    // Protect comments first
+    const pyComments: string[] = [];
+    escaped = escaped.replace(/(#.*$)/gm, (match) => {
+      pyComments.push(match);
+      return `__PYCOMMENT_${pyComments.length - 1}__`;
+    });
+    
     escaped = escaped
-      // Comments
-      .replace(/(#.*$)/gm, '<span style="color: #6a9955;">$1</span>')
       // Strings
       .replace(/("""[\s\S]*?"""|'''[\s\S]*?'''|"([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, '<span style="color: #ce9178;">$1</span>')
       // Keywords
       .replace(/\b(def|class|if|elif|else|for|while|return|import|from|as|try|except|raise|with|lambda|True|False|None|and|or|not|in|is)\b/g, '<span style="color: #569cd6;">$1</span>')
       // Numbers
-      .replace(/\b(\d+\.?\d*)\b/g, '<span style="color: #b5cea8;">$1</span>');
+      .replace(/(?<![a-zA-Z_])\b(\d+\.?\d*)\b/g, '<span style="color: #b5cea8;">$1</span>');
+    
+    // Restore comments with highlighting
+    escaped = escaped.replace(/__PYCOMMENT_(\d+)__/g, (_, index) => {
+      return `<span style="color: #6a9955;">${pyComments[parseInt(index)]}</span>`;
+    });
   }
   // Bash/Shell highlighting
   else if (lang === 'bash' || lang === 'sh' || lang === 'shell' || lang === 'zsh') {
+    // Protect comments first
+    const shComments: string[] = [];
+    escaped = escaped.replace(/(#.*$)/gm, (match) => {
+      shComments.push(match);
+      return `__SHCOMMENT_${shComments.length - 1}__`;
+    });
+    
     escaped = escaped
-      // Comments
-      .replace(/(#.*$)/gm, '<span style="color: #6a9955;">$1</span>')
       // Strings
       .replace(/("([^"\\]|\\.)*"|'[^']*')/g, '<span style="color: #ce9178;">$1</span>')
       // Variables
       .replace(/(\$\w+|\$\{[^}]+\})/g, '<span style="color: #9cdcfe;">$1</span>');
+    
+    // Restore comments with highlighting
+    escaped = escaped.replace(/__SHCOMMENT_(\d+)__/g, (_, index) => {
+      return `<span style="color: #6a9955;">${shComments[parseInt(index)]}</span>`;
+    });
   }
   // HTML/XML highlighting
   else if (lang === 'html' || lang === 'xml' || lang === 'svg') {
@@ -280,6 +316,11 @@ const filterNonConversationElements = (container: HTMLElement): void => {
     '#page-header', // ChatGPT header
     '#thread-bottom-container', // ChatGPT input area
     '#thread-bottom',
+    // Invisible positioning/edge elements (often cause white dots)
+    '[data-edge="true"]',
+    '.h-px.w-px', // 1px x 1px elements
+    '.w-px', // 1px width elements
+    '.h-px', // 1px height elements
     // Claude specific
     '[class*="ConversationHeader"]',
     '[class*="MessageInput"]',
@@ -363,6 +404,28 @@ const filterNonConversationElements = (container: HTMLElement): void => {
     
     if (!isInCode && isSmall) {
       svg.remove();
+    }
+  });
+
+  // Remove aria-hidden elements that are empty or tiny (decorative/UI elements)
+  container.querySelectorAll('[aria-hidden="true"]').forEach(el => {
+    const htmlEl = el as HTMLElement;
+    const text = htmlEl.textContent?.trim() || '';
+    const rect = htmlEl.getBoundingClientRect();
+    
+    // Remove if empty or very small (likely decorative dots/spinners)
+    if (text.length === 0 || (rect.width <= 10 && rect.height <= 10)) {
+      htmlEl.remove();
+    }
+  });
+
+  // Remove pointer-events-none elements that are likely decorative overlays
+  container.querySelectorAll('.pointer-events-none').forEach(el => {
+    const htmlEl = el as HTMLElement;
+    const text = htmlEl.textContent?.trim() || '';
+    // Only remove if empty (purely visual elements)
+    if (text.length === 0) {
+      htmlEl.remove();
     }
   });
 };
@@ -664,6 +727,15 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
       overflow: visible !important;
       max-height: none !important;
     }
+    /* Hide decorative UI elements that might cause white dots */
+    .ai-chat-export-item [data-edge="true"],
+    .ai-chat-export-item .h-px,
+    .ai-chat-export-item .w-px,
+    .ai-chat-export-item .h-px.w-px,
+    .ai-chat-export-item [aria-hidden="true"]:empty,
+    .ai-chat-export-item .pointer-events-none:empty {
+      display: none !important;
+    }
     /* But allow specific elements to maintain scroll behavior if needed */
     /* Rebuilt code blocks - clean styling */
     .ai-chat-export-item .exported-code-wrapper {
@@ -819,6 +891,7 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
       </div>
       <script>
         // Syntax highlighting for common languages
+        // Uses placeholder approach to prevent regex conflicts
         const highlightCode = (code, language) => {
           let escaped = code
             .replace(/&/g, '&amp;')
@@ -827,7 +900,7 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
           
           const lang = (language || '').toLowerCase();
           
-          // JSON highlighting - match ChatGPT's color scheme
+          // JSON highlighting
           if (lang === 'json') {
             escaped = escaped.replace(/"([^"\\\\\\\\]|\\\\\\\\.)*"/g, function(match, _, offset, string) {
               var afterMatch = string.slice(offset + match.length);
@@ -841,29 +914,53 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
             escaped = escaped.replace(/\\b(-?\\d+\\.?\\d*)\\b/g, '<span style="color: #b5cea8;">$1</span>');
             escaped = escaped.replace(/\\b(true|false|null)\\b/g, '<span style="color: #569cd6;">$1</span>');
           }
-          // JavaScript/TypeScript highlighting
+          // JavaScript/TypeScript highlighting - protect comments first
           else if (['javascript', 'js', 'typescript', 'ts'].includes(lang)) {
+            var jsComments = [];
+            escaped = escaped.replace(/(\\/\\/.*$)/gm, function(match) {
+              jsComments.push(match);
+              return '__JSCOMMENT_' + (jsComments.length - 1) + '__';
+            });
+            escaped = escaped.replace(/(\\/\\*[\\s\\S]*?\\*\\/)/g, function(match) {
+              jsComments.push(match);
+              return '__JSCOMMENT_' + (jsComments.length - 1) + '__';
+            });
             escaped = escaped
-              .replace(/(\\/\\/.*$)/gm, '<span style="color: #6a9955;">$1</span>')
-              .replace(/(\\/\\*[\\s\\S]*?\\*\\/)/g, '<span style="color: #6a9955;">$1</span>')
               .replace(/("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*'|\`([^\`\\\\]|\\\\.)*\`)/g, '<span style="color: #ce9178;">$1</span>')
               .replace(/\\b(const|let|var|function|return|if|else|for|while|class|import|export|from|async|await|try|catch|throw|new|this|typeof|instanceof)\\b/g, '<span style="color: #569cd6;">$1</span>')
               .replace(/\\b(\\d+\\.?\\d*)\\b/g, '<span style="color: #b5cea8;">$1</span>');
+            escaped = escaped.replace(/__JSCOMMENT_(\\d+)__/g, function(_, index) {
+              return '<span style="color: #6a9955;">' + jsComments[parseInt(index)] + '</span>';
+            });
           }
-          // Python highlighting
+          // Python highlighting - protect comments first
           else if (['python', 'py'].includes(lang)) {
+            var pyComments = [];
+            escaped = escaped.replace(/(#.*$)/gm, function(match) {
+              pyComments.push(match);
+              return '__PYCOMMENT_' + (pyComments.length - 1) + '__';
+            });
             escaped = escaped
-              .replace(/(#.*$)/gm, '<span style="color: #6a9955;">$1</span>')
               .replace(/("""[\\s\\S]*?"""|\'\'\'[\\s\\S]*?\'\'\'|"([^"\\\\]|\\\\.)*"|\'([^\'\\\\]|\\\\.)*\')/g, '<span style="color: #ce9178;">$1</span>')
               .replace(/\\b(def|class|if|elif|else|for|while|return|import|from|as|try|except|raise|with|lambda|True|False|None|and|or|not|in|is)\\b/g, '<span style="color: #569cd6;">$1</span>')
               .replace(/\\b(\\d+\\.?\\d*)\\b/g, '<span style="color: #b5cea8;">$1</span>');
+            escaped = escaped.replace(/__PYCOMMENT_(\\d+)__/g, function(_, index) {
+              return '<span style="color: #6a9955;">' + pyComments[parseInt(index)] + '</span>';
+            });
           }
-          // Bash/Shell highlighting
+          // Bash/Shell highlighting - protect comments first
           else if (['bash', 'sh', 'shell', 'zsh'].includes(lang)) {
+            var shComments = [];
+            escaped = escaped.replace(/(#.*$)/gm, function(match) {
+              shComments.push(match);
+              return '__SHCOMMENT_' + (shComments.length - 1) + '__';
+            });
             escaped = escaped
-              .replace(/(#.*$)/gm, '<span style="color: #6a9955;">$1</span>')
               .replace(/("([^"\\\\]|\\\\.)*"|\'[^\']*\')/g, '<span style="color: #ce9178;">$1</span>')
               .replace(/(\\$\\w+|\\$\\{[^}]+\\})/g, '<span style="color: #9cdcfe;">$1</span>');
+            escaped = escaped.replace(/__SHCOMMENT_(\\d+)__/g, function(_, index) {
+              return '<span style="color: #6a9955;">' + shComments[parseInt(index)] + '</span>';
+            });
           }
           // HTML/XML highlighting
           else if (['html', 'xml', 'svg'].includes(lang)) {
@@ -879,13 +976,20 @@ export const generateExportHTML = (elements: SelectedElement[]) => {
               .replace(/([\\w-]+):/g, '<span style="color: #9cdcfe;">$1</span>:')
               .replace(/:\\s*([^;]+);/g, ': <span style="color: #ce9178;">$1</span>;');
           }
-          // SQL highlighting
+          // SQL highlighting - protect comments first
           else if (lang === 'sql') {
+            var sqlComments = [];
+            escaped = escaped.replace(/(--.*$)/gm, function(match) {
+              sqlComments.push(match);
+              return '__SQLCOMMENT_' + (sqlComments.length - 1) + '__';
+            });
             escaped = escaped
-              .replace(/(--.*$)/gm, '<span style="color: #6a9955;">$1</span>')
               .replace(/('([^'\\\\]|\\\\.)*')/g, '<span style="color: #ce9178;">$1</span>')
               .replace(/\\b(SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TABLE|INDEX|JOIN|LEFT|RIGHT|INNER|OUTER|ON|AND|OR|NOT|NULL|AS|ORDER|BY|GROUP|HAVING|LIMIT|OFFSET|UNION|DISTINCT|INTO|VALUES|SET)\\b/gi, '<span style="color: #569cd6;">$&</span>')
               .replace(/\\b(\\d+\\.?\\d*)\\b/g, '<span style="color: #b5cea8;">$1</span>');
+            escaped = escaped.replace(/__SQLCOMMENT_(\\d+)__/g, function(_, index) {
+              return '<span style="color: #6a9955;">' + sqlComments[parseInt(index)] + '</span>';
+            });
           }
           
           return escaped;
