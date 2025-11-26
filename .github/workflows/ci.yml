@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build:
+    name: Build and Type Check
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        bun-version: ["latest"]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+      
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      - name: Type check
+        run: bunx tsc --noEmit
+      
+      - name: Build extension
+        run: bun run build
+      
+      - name: Check build artifacts
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "Build failed: dist directory not found"
+            exit 1
+          fi
+          if [ ! -f "dist/manifest.json" ]; then
+            echo "Build failed: manifest.json not found"
+            exit 1
+          fi
+          echo "Build artifacts verified successfully"
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-build
+          path: dist/
+          retention-days: 7
+
+  lint:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      - name: Check TypeScript strict mode
+        run: bunx tsc --noEmit --strict
+        continue-on-error: true
+
+  manifest-validation:
+    name: Validate Manifest
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      - name: Build extension
+        run: bun run build
+      
+      - name: Validate manifest.json
+        run: |
+          if [ ! -f "dist/manifest.json" ]; then
+            echo "Error: manifest.json not found"
+            exit 1
+          fi
+          
+          # Check if manifest.json is valid JSON
+          bun -e "JSON.parse(require('fs').readFileSync('dist/manifest.json', 'utf8'))"
+          
+          # Check required fields
+          MANIFEST_VERSION=$(bun -e "console.log(JSON.parse(require('fs').readFileSync('dist/manifest.json', 'utf8')).manifest_version)")
+          if [ -z "$MANIFEST_VERSION" ]; then
+            echo "Error: manifest_version is missing"
+            exit 1
+          fi
+          
+          echo "Manifest validation passed (v$MANIFEST_VERSION)"
+

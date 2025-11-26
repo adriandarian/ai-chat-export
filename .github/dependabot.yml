@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # Enable version updates for Bun
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    # Limit to 1 PR to group all dependencies together
+    open-pull-requests-limit: 1
+    reviewers:
+      - "adriandarian"
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # Group all dependencies (production + development) into a single PR
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
+
