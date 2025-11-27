@@ -87,6 +87,12 @@ dist
 # Bundle analyzer reports
 bundle-reports/
 
+# Test results
+test-results/
+
+# Lighthouse CI
+.lighthouseci/
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js

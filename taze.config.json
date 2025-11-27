@@ -1,0 +1,15 @@
+{
+  "recursive": true,
+  "mode": "major",
+  "write": false,
+  "include": [
+    "dependencies",
+    "devDependencies"
+  ],
+  "exclude": [
+    "@crxjs/vite-plugin"
+  ],
+  "ignorePaths": [
+    "node_modules"
+  ]
+}

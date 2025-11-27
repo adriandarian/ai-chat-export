@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "warn",
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "warn"
+  },
+  "settings": {
+    "react": {
+      "runtime": "automatic"
+    }
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "bundle-reports",
+    "packages",
+    "*.min.js"
+  ]
+}

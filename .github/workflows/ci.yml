@@ -6,24 +6,26 @@ on:
   pull_request:
     branches: [main, develop]
 
+env:
+  SNYK_PROJECT_ID: 960dacb5-f5fd-4718-804e-22c0764f223e
+
 jobs:
+  # ============================================
+  # Build Job
+  # ============================================
   build:
     name: Build and Type Check
     runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        bun-version: ["latest"]
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
+
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
@@ -33,16 +35,16 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
-      
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      
+
       - name: Type check
         run: bunx tsc --noEmit
-      
+
       - name: Build extension
         run: bun run build
-      
+
       - name: Check build artifacts
         run: |
           if [ ! -d "dist" ]; then
@@ -54,7 +56,7 @@ jobs:
             exit 1
           fi
           echo "Build artifacts verified successfully"
-      
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -62,46 +64,141 @@ jobs:
           path: dist/
           retention-days: 7
 
-  bundle-size:
-    name: Bundle Size Check
+  # ============================================
+  # Code Quality - Linting & Formatting
+  # ============================================
+  lint:
+    name: Lint and Format
     runs-on: ubuntu-latest
-    needs: build
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-      
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      
+
+      - name: Run oxlint
+        run: bun run lint
+
+      - name: Check formatting with oxfmt
+        run: bun run format:check
+
+      - name: Check TypeScript strict mode
+        run: bunx tsc --noEmit --strict
+        continue-on-error: true
+
+  # ============================================
+  # Testing with Coverage
+  # ============================================
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests with coverage
+        run: bun run test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results/
+            coverage/
+          retention-days: 7
+
+  # ============================================
+  # Security Scanning
+  # ============================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --project-id=${{ env.SNYK_PROJECT_ID }}
+
+  # ============================================
+  # Bundle Size Check
+  # ============================================
+  bundle-size:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: extension-build
           path: dist/
-      
+
       - name: Analyze bundle size
         run: bun run bundle:check
-      
+
       - name: Generate bundle report
         if: always()
         run: bun run bundle:report
-      
+
       - name: Upload bundle report
         if: always()
         uses: actions/upload-artifact@v4
@@ -110,62 +207,151 @@ jobs:
           path: bundle-reports/
           retention-days: 30
 
-  lint:
-    name: Lint and Format Check
+  # ============================================
+  # Lighthouse CI - Performance & Accessibility
+  # ============================================
+  lighthouse:
+    name: Lighthouse CI
     runs-on: ubuntu-latest
-    continue-on-error: true
-    
+    needs: build
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      
-      - name: Check TypeScript strict mode
-        run: bunx tsc --noEmit --strict
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-build
+          path: dist/
+
+      - name: Run Lighthouse CI
+        run: bun run lighthouse
         continue-on-error: true
 
+      - name: Upload Lighthouse results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-results
+          path: .lighthouseci/
+          retention-days: 7
+
+  # ============================================
+  # Manifest Validation
+  # ============================================
   manifest-validation:
     name: Validate Manifest
     runs-on: ubuntu-latest
-    
+    needs: build
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      
-      - name: Build extension
-        run: bun run build
-      
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-build
+          path: dist/
+
       - name: Validate manifest.json
         run: |
           if [ ! -f "dist/chrome/manifest.json" ]; then
             echo "Error: manifest.json not found"
             exit 1
           fi
-          
+
           # Check if manifest.json is valid JSON
           bun -e "JSON.parse(require('fs').readFileSync('dist/chrome/manifest.json', 'utf8'))"
-          
+
           # Check required fields
           MANIFEST_VERSION=$(bun -e "console.log(JSON.parse(require('fs').readFileSync('dist/chrome/manifest.json', 'utf8')).manifest_version)")
           if [ -z "$MANIFEST_VERSION" ]; then
             echo "Error: manifest_version is missing"
             exit 1
           fi
-          
+
           echo "Manifest validation passed (v$MANIFEST_VERSION)"
 
+  # ============================================
+  # Danger.js - PR Review
+  # ============================================
+  danger:
+    name: Danger PR Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: [build, test, bundle-size]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Download bundle report
+        uses: actions/download-artifact@v4
+        with:
+          name: bundle-report
+          path: bundle-reports/
+        continue-on-error: true
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          path: ./
+        continue-on-error: true
+
+      - name: Run Danger
+        run: bunx danger ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # Dependency Updates Check (Taze)
+  # ============================================
+  deps-check:
+    name: Check Dependencies
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check for outdated dependencies
+        run: bun run deps:check
+        continue-on-error: true
