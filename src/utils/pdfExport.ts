@@ -1,184 +1,150 @@
 /**
- * PDF generation and export - Hybrid approach with native text rendering
+ * PDF generation and export - Optimized for speed
  * 
- * Features:
- * - Selectable/searchable text
- * - Clickable links
- * - Smart page breaks
- * - Syntax-highlighted code blocks
- * - Smaller file sizes compared to image-only approach
- * - High visual quality
+ * Uses html2canvas with optimized settings for fast rendering.
  */
 
 import { SelectedElement } from '../types';
 import jsPDF from 'jspdf';
-import { getDocumentBackgroundColor, parseColor } from './styles';
+import html2canvas from 'html2canvas';
+import { getPageStyles, parseColor } from './styles';
 import { enhanceElementWithStyles } from './elementProcessing';
+import { fixCodeBlocks } from './codeBlocks';
 import { downloadBlobWithPicker } from './download';
 import { generateExportHTML } from './htmlExport';
-import { parseHTMLToContentBlocks, flattenContentBlocks, ContentBlock } from './pdfContentParser';
-import { renderContentToPdf } from './pdfRenderer';
-import { isLightColor } from './pdfLayout';
+
+// PDF dimensions
+const PAGE_WIDTH_MM = 210;
+const PAGE_HEIGHT_MM = 297;
+const RENDER_WIDTH_PX = 800;
+const RENDER_SCALE = 1.5; // Lower scale = faster, 1.5 is good balance
 
 /**
- * Generate a PDF blob from selected elements using native text rendering
+ * Minimal styles for PDF rendering - skip heavy CSS processing
  */
-export const generateExportPDF = async (elements: SelectedElement[]): Promise<Blob> => {
-  if (!elements || elements.length === 0) {
-    throw new Error('No elements selected for export');
+const getMinimalStyles = (): string => `
+  * { box-sizing: border-box; }
+  body, html { margin: 0; padding: 0; }
+  .pdf-content {
+    width: ${RENDER_WIDTH_PX}px;
+    padding: 32px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow: visible !important;
   }
-
-  console.log('PDF Export: Starting with', elements.length, 'elements');
-
-  // Get document colors
-  const bgColor = getDocumentBackgroundColor();
-  const textColor = isLightColor(bgColor) ? '#1f2937' : '#f3f4f6';
-
-  console.log('PDF Export: Using background:', bgColor, 'text:', textColor);
-
-  // Create PDF
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-    compress: true,
-  });
-
-  try {
-    // Enhance and parse elements to content blocks
-    const allBlocks: ContentBlock[] = [];
-
-    for (const element of elements) {
-      try {
-        // Enhance element with computed styles
-        const enhancedHtml = enhanceElementWithStyles(element);
-        
-        // Parse to content blocks
-        const blocks = parseHTMLToContentBlocks(enhancedHtml);
-        allBlocks.push(...blocks);
-      } catch (err) {
-        console.warn('PDF Export: Error processing element:', err);
-        // Try with raw content as fallback
-        const blocks = parseHTMLToContentBlocks(element.content);
-        allBlocks.push(...blocks);
-      }
-    }
-
-    console.log('PDF Export: Parsed', allBlocks.length, 'content blocks');
-
-    if (allBlocks.length === 0) {
-      throw new Error('No content parsed from selected elements');
-    }
-
-    // Flatten message blocks for rendering
-    const flattenedBlocks = flattenContentBlocks(allBlocks);
-    console.log('PDF Export: Flattened to', flattenedBlocks.length, 'blocks');
-
-    // Render content to PDF
-    await renderContentToPdf(pdf, flattenedBlocks, bgColor, textColor);
-
-    console.log('PDF Export: Rendered', pdf.getNumberOfPages(), 'pages');
-
-    // Generate blob
-    const pdfBlob = pdf.output('blob');
-    
-    console.log('PDF Export: Generated blob of size', (pdfBlob.size / 1024).toFixed(1), 'KB');
-    
-    return pdfBlob;
-  } catch (error) {
-    console.error('PDF Export: Native rendering failed, falling back to image mode:', error);
-    // Fall back to the legacy image-based approach
-    return await generateLegacyPDF(elements);
+  img { max-width: 100%; height: auto; }
+  pre, code {
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: visible !important;
   }
+  pre {
+    padding: 12px;
+    border-radius: 6px;
+    margin: 8px 0;
+  }
+`;
+
+/**
+ * Get background color quickly
+ */
+const getBackgroundColor = (): string => {
+  const bg = window.getComputedStyle(document.body).backgroundColor;
+  return (bg && bg !== 'rgba(0, 0, 0, 0)') ? bg : '#212121';
 };
 
 /**
- * Legacy image-based PDF generation (fallback)
+ * Generate PDF blob - optimized for speed
  */
-const generateLegacyPDF = async (elements: SelectedElement[]): Promise<Blob> => {
-  const html2canvas = (await import('html2canvas')).default;
-  
-  // Create a temporary container for rendering
-  const tempContainer = document.createElement('div');
-  tempContainer.style.position = 'absolute';
-  tempContainer.style.top = '0';
-  tempContainer.style.left = '-9999px';
-  tempContainer.style.width = '794px';
-  tempContainer.style.maxWidth = '794px';
-  tempContainer.style.minHeight = '100px';
-  tempContainer.style.padding = '40px';
-  tempContainer.style.backgroundColor = 'transparent';
-  tempContainer.style.pointerEvents = 'none';
-  tempContainer.style.zIndex = '-9999';
-  tempContainer.style.overflow = 'visible';
-  tempContainer.style.height = 'auto';
-  tempContainer.style.display = 'block';
-  document.body.appendChild(tempContainer);
+export const generateExportPDF = async (elements: SelectedElement[]): Promise<Blob> => {
+  if (!elements || elements.length === 0) {
+    throw new Error('No elements selected');
+  }
+
+  const startTime = performance.now();
+  console.log('PDF: Starting export...');
+
+  // Create off-screen container
+  const container = document.createElement('div');
+  container.style.cssText = `
+    position: fixed;
+    left: -99999px;
+    top: 0;
+    width: ${RENDER_WIDTH_PX}px;
+    background: transparent;
+    visibility: hidden;
+  `;
+  document.body.appendChild(container);
 
   try {
-    // Enhance elements with computed styles
-    const enhancedContent = elements.map((el) => {
+    // Get styles and background
+    const pageStyles = getPageStyles();
+    const bgColor = getBackgroundColor();
+    
+    // Enhance elements quickly
+    const contents = elements.map(el => {
       try {
         return enhanceElementWithStyles(el);
-      } catch (err) {
-        console.warn('Error enhancing element for PDF:', err);
+      } catch {
         return el.content || '';
       }
-    }).filter(content => content && content.trim().length > 0).join('\n');
+    }).filter(c => c.trim()).join('\n');
 
-    if (!enhancedContent || enhancedContent.trim().length === 0) {
-      throw new Error('No content generated from selected elements');
-    }
+    if (!contents) throw new Error('No content');
 
-    // Get document background color
-    const bgColor = getDocumentBackgroundColor();
-
-    tempContainer.innerHTML = `
-      <style>
-        * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-        .ai-chat-export-item { margin-bottom: 20px; }
-        pre { overflow: visible !important; white-space: pre-wrap !important; word-wrap: break-word !important; }
-        code { white-space: pre-wrap; word-wrap: break-word; font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace; }
-      </style>
-      <div class="ai-chat-export-item">${enhancedContent}</div>
+    // Build render HTML
+    container.innerHTML = `
+      <style>${getMinimalStyles()}</style>
+      ${pageStyles}
+      <div class="pdf-content">${contents}</div>
     `;
 
-    // Force reflow
-    void tempContainer.offsetHeight;
+    // Quick code block fix
+    fixCodeBlocks(container);
 
-    // Wait for content to render
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Minimal wait - just for DOM to settle
+    await new Promise(r => setTimeout(r, 50));
 
-    const contentHeight = tempContainer.scrollHeight;
+    const contentEl = container.querySelector('.pdf-content') as HTMLElement;
+    const contentHeight = contentEl.scrollHeight;
+    
+    console.log('PDF: Content ready, height:', contentHeight, 'px');
 
-    // Move container into view for html2canvas
-    tempContainer.style.left = '0';
-    tempContainer.style.visibility = 'visible';
+    // Make visible for capture
+    container.style.visibility = 'visible';
 
-    // Render to canvas
-    const canvas = await html2canvas(tempContainer, {
+    // Render to canvas with optimized settings
+    const canvas = await html2canvas(contentEl, {
       backgroundColor: bgColor,
-      scale: 2,
+      scale: RENDER_SCALE,
       useCORS: true,
       allowTaint: true,
       logging: false,
-      windowWidth: 794,
-      windowHeight: Math.max(contentHeight + 100, window.innerHeight),
-      height: contentHeight + 50,
+      // Disable slow features
+      foreignObjectRendering: false,
+      removeContainer: false,
+      // Set exact dimensions
+      width: RENDER_WIDTH_PX,
+      height: contentHeight,
+      windowWidth: RENDER_WIDTH_PX,
+      windowHeight: contentHeight,
+      scrollX: 0,
+      scrollY: 0,
     });
 
-    // Move container off-screen
-    tempContainer.style.left = '-9999px';
-    tempContainer.style.visibility = 'hidden';
+    container.style.visibility = 'hidden';
 
-    if (!canvas || canvas.width === 0 || canvas.height === 0) {
-      throw new Error('Failed to capture content - canvas is empty');
+    if (!canvas || canvas.width === 0) {
+      throw new Error('Canvas capture failed');
     }
 
-    // Create PDF from canvas
+    console.log('PDF: Canvas captured:', canvas.width, 'x', canvas.height);
+
+    // Create PDF
     const [r, g, b] = parseColor(bgColor);
-    const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -186,68 +152,62 @@ const generateLegacyPDF = async (elements: SelectedElement[]): Promise<Blob> => 
       compress: true,
     });
 
-    const imgWidth = 210;
-    const pageHeight = 297;
+    const imgData = canvas.toDataURL('image/jpeg', 0.92); // JPEG is faster than PNG
+    const imgWidth = PAGE_WIDTH_MM;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    
     let heightLeft = imgHeight;
     let position = 0;
+    let pageNum = 0;
 
-    // Add first page
-    pdf.setFillColor(r, g, b);
-    pdf.rect(0, 0, 210, pageHeight, 'F');
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    // Add additional pages if needed
     while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
+      if (pageNum > 0) pdf.addPage();
+      
       pdf.setFillColor(r, g, b);
-      pdf.rect(0, 0, 210, pageHeight, 'F');
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      pdf.rect(0, 0, PAGE_WIDTH_MM, PAGE_HEIGHT_MM, 'F');
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      
+      heightLeft -= PAGE_HEIGHT_MM;
+      position = heightLeft - imgHeight;
+      pageNum++;
     }
 
-    return pdf.output('blob');
+    const blob = pdf.output('blob');
+    const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+    console.log(`PDF: Done! ${pageNum} pages, ${(blob.size/1024).toFixed(0)}KB in ${elapsed}s`);
+
+    return blob;
+
   } finally {
-    document.body.removeChild(tempContainer);
+    document.body.removeChild(container);
   }
 };
 
 /**
- * Generate and download a PDF file
+ * Download PDF file
  */
 export const downloadPDF = async (elements: SelectedElement[], filename: string): Promise<void> => {
   try {
     const blob = await generateExportPDF(elements);
-    const saved = await downloadBlobWithPicker(
-      blob, 
-      filename, 
-      'PDF Document', 
-      { 'application/pdf': ['.pdf'] }
-    );
+    await downloadBlobWithPicker(blob, filename, 'PDF Document', { 'application/pdf': ['.pdf'] });
+  } catch (error) {
+    console.error('PDF export failed:', error);
     
-    if (!saved) {
-      // User cancelled - don't throw, just return
-      return;
+    // Fallback to HTML
+    try {
+      const html = generateExportHTML(elements);
+      const blob = new Blob([html], { type: 'text/html' });
+      const saved = await downloadBlobWithPicker(
+        blob,
+        filename.replace('.pdf', '.html'),
+        'HTML Document',
+        { 'text/html': ['.html'] }
+      );
+      if (saved) {
+        alert('PDF failed. HTML saved instead - use Print > Save as PDF');
+      }
+    } catch {
+      alert('Export failed. Try HTML or Markdown format.');
     }
-  } catch (error: any) {
-    console.error('PDF generation failed:', error);
-    // Fallback: Generate HTML and let user print to PDF
-    const html = generateExportHTML(elements);
-    const blob = new Blob([html], { type: 'text/html' });
-    
-    const saved = await downloadBlobWithPicker(
-      blob,
-      filename.replace('.pdf', '.html'),
-      'HTML Document',
-      { 'text/html': ['.html', '.htm'] }
-    );
-    
-    if (saved) {
-      // Show alert to user only if they saved the fallback
-      alert(`PDF generation failed. An HTML file has been saved instead. You can open it and use "Print to PDF" (${navigator.platform.includes('Mac') ? 'Cmd+P' : 'Ctrl+P'}) to save as PDF.`);
-    }
-    throw error;
   }
 };

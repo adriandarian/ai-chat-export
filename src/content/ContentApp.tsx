@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Message, SelectedElement } from '../types';
 import { SelectionOverlay, SelectionPanel, SelectionMode, ExportFormat } from '../components';
-import { generateExportHTML, downloadBlob, downloadPDF, generateExportMarkdown } from '../utils/export';
+import { generateExportHTML, downloadBlob, downloadPDF, generateExportMarkdown, generateExportJSON } from '../utils/export';
+
+type Theme = 'light' | 'dark' | 'midnight';
 
 export const ContentApp = () => {
   const [isActive, setIsActive] = useState(false);
@@ -11,10 +13,47 @@ export const ContentApp = () => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<string>('');
+  const [theme, setTheme] = useState<Theme>('light');
   
   const hoveredElRef = useRef<HTMLElement | null>(null);
   const isActiveRef = useRef(isActive);
   const selectionModeRef = useRef<SelectionMode>(selectionMode);
+
+  // Load theme from storage and listen for changes
+  useEffect(() => {
+    const loadTheme = () => {
+      try {
+        if (!chrome?.runtime?.id) return;
+        chrome.storage.local.get(['theme'], (result) => {
+          if (result.theme) {
+            setTheme(result.theme as Theme);
+          }
+        });
+      } catch (e) {
+        console.warn('Could not load theme:', e);
+      }
+    };
+
+    loadTheme();
+
+    // Listen for theme changes from popup
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+      if (changes.theme?.newValue) {
+        setTheme(changes.theme.newValue as Theme);
+      }
+    };
+
+    try {
+      if (chrome?.storage?.onChanged) {
+        chrome.storage.onChanged.addListener(handleStorageChange);
+        return () => {
+          chrome.storage.onChanged.removeListener(handleStorageChange);
+        };
+      }
+    } catch (e) {
+      console.warn('Could not attach storage listener:', e);
+    }
+  }, []);
 
   useEffect(() => {
     isActiveRef.current = isActive;
@@ -475,7 +514,7 @@ export const ContentApp = () => {
         await downloadBlob(html, `chat-export-${Date.now()}.html`, 'text/html');
       } else if (format === 'json') {
         setExportProgress('Generating JSON...');
-        const json = JSON.stringify(selectedElements, null, 2);
+        const json = generateExportJSON(selectedElements);
         await downloadBlob(json, `chat-export-${Date.now()}.json`, 'application/json');
       } else if (format === 'markdown') {
         setExportProgress('Generating Markdown...');
@@ -496,7 +535,7 @@ export const ContentApp = () => {
   if (!isActive && selectedElements.length === 0) return null;
 
   return (
-    <div className="font-sans text-gray-800 pointer-events-none">
+    <div className="font-sans pointer-events-none" data-theme={theme}>
       <SelectionOverlay isVisible={isActive} rect={hoverRect} />
       
       <SelectionPanel
@@ -506,6 +545,7 @@ export const ContentApp = () => {
         isExporting={isExporting}
         exportProgress={exportProgress}
         showExportMenu={showExportMenu}
+        theme={theme}
         onClose={() => {
               setIsActive(false);
               setSelectedElements([]);

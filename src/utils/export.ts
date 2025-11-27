@@ -58,26 +58,11 @@ export {
   downloadPDF,
 } from './pdfExport';
 
-// PDF content parsing
+// JSON export
 export {
-  parseHTMLToContentBlocks,
-  parseSelectedElements,
-  flattenContentBlocks,
-} from './pdfContentParser';
-
-// PDF layout
-export {
-  PAGE_WIDTH,
-  PAGE_HEIGHT,
-  MARGIN_LEFT,
-  MARGIN_RIGHT,
-  CONTENT_WIDTH,
-} from './pdfLayout';
-
-// PDF rendering
-export {
-  renderContentToPdf,
-} from './pdfRenderer';
+  generateExportJSON,
+  generateSimpleExportJSON,
+} from './jsonExport';
 
 // Download utilities
 export {

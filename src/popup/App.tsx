@@ -91,14 +91,14 @@ function App() {
     <div className="h-full flex flex-col bg-background text-text-primary font-sans selection:bg-primary/20 selection:text-primary transition-colors duration-300">
       
       {/* Header */}
-      <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-surface/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg text-primary-text">
-            <MessageSquare size={18} strokeWidth={2.5} />
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-surface/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center shadow-lg text-primary-text">
+            <MessageSquare size={16} strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-base font-bold leading-none text-text-primary">Chat Export</h1>
-            <p className="text-[10px] font-medium text-text-muted mt-0.5 tracking-wide">AI CONVERSATION SAVER</p>
+            <h1 className="text-sm font-bold leading-none text-text-primary">Chat Export</h1>
+            <p className="text-[9px] font-medium text-text-muted mt-0.5 tracking-wide">AI CONVERSATION SAVER</p>
           </div>
         </div>
         <button 
@@ -106,45 +106,45 @@ function App() {
           className="p-1.5 rounded-full transition-colors text-text-muted hover:text-text-primary hover:bg-surface-highlight active:scale-95"
           title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
         >
-          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+          {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
         </button>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-5 flex flex-col relative overflow-hidden justify-center">
+      <div className="flex-1 p-4 flex flex-col relative overflow-hidden justify-center">
         
         {/* Decorative blob */}
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-gradient-to-br from-primary/10 to-purple-500/10 rounded-full blur-3xl pointer-events-none opacity-60"></div>
+        <div className="absolute -top-16 -right-16 w-48 h-48 bg-gradient-to-br from-primary/10 to-purple-500/10 rounded-full blur-3xl pointer-events-none opacity-60"></div>
 
         {error ? (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded-xl text-xs font-medium text-center mb-6 animate-in fade-in slide-in-from-top-2">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-3 py-2 rounded-xl text-xs font-medium text-center mb-4 animate-in fade-in slide-in-from-top-2">
             {error}
           </div>
         ) : (
-          <div className="space-y-6 relative z-0 text-center">
+          <div className="space-y-4 relative z-0 text-center">
             
             {/* Hero Text */}
-            <div className="space-y-3">
-              <h2 className="text-xl font-bold text-text-primary tracking-tight">Export your chats</h2>
-              <p className="text-sm text-text-muted leading-relaxed max-w-[260px] mx-auto">
+            <div className="space-y-2">
+              <h2 className="text-lg font-bold text-text-primary tracking-tight">Export your chats</h2>
+              <p className="text-xs text-text-muted leading-relaxed max-w-[240px] mx-auto">
                 Select messages from ChatGPT, Claude, and more to export as <span className="text-primary font-semibold">PDF</span>, <span className="text-primary font-semibold">HTML</span>, or <span className="text-primary font-semibold">JSON</span>.
               </p>
             </div>
 
             {/* Simple Action Button */}
-            <div className="pt-2">
+            <div className="pt-1">
               <button 
                 onClick={handleStartSelection}
-                className="w-full bg-primary hover:bg-primary-hover text-primary-text py-3.5 rounded-xl font-semibold text-sm shadow-xl shadow-primary/10 hover:shadow-2xl hover:shadow-primary/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 group"
+                className="w-full bg-primary hover:bg-primary-hover text-primary-text py-2.5 rounded-xl font-semibold text-sm shadow-xl shadow-primary/10 hover:shadow-2xl hover:shadow-primary/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 group"
               >
-                <MousePointer2 size={18} className="opacity-80 group-hover:opacity-100 transition-colors" />
+                <MousePointer2 size={16} className="opacity-80 group-hover:opacity-100 transition-colors" />
                 Start Selection Mode
-                <ArrowRight size={16} className="opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                <ArrowRight size={14} className="opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
               </button>
             </div>
 
-            <div className="flex items-center justify-center gap-1.5 text-[10px] text-text-muted font-medium uppercase tracking-wider opacity-60">
-              <Sparkles size={10} />
+            <div className="flex items-center justify-center gap-1 text-[9px] text-text-muted font-medium uppercase tracking-wider opacity-60">
+              <Sparkles size={9} />
               <span>Preserves Styles & Formatting</span>
             </div>
 

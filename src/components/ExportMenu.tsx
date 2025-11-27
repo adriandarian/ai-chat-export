@@ -1,15 +1,19 @@
 import { FileDown, ChevronDown, Code, FileText, FileType, FileJson } from 'lucide-react';
 
 export type ExportFormat = 'html' | 'pdf' | 'json' | 'markdown';
+type Theme = 'light' | 'dark' | 'midnight';
 
 interface ExportMenuProps {
   isOpen: boolean;
   onToggle: () => void;
   onExport: (format: ExportFormat) => void;
   disabled?: boolean;
+  theme?: Theme;
 }
 
-export const ExportMenu = ({ isOpen, onToggle, onExport, disabled }: ExportMenuProps) => {
+export const ExportMenu = ({ isOpen, onToggle, onExport, disabled, theme = 'light' }: ExportMenuProps) => {
+  const isDark = theme === 'dark' || theme === 'midnight';
+  
   return (
     <div className="flex-1 relative">
       <button
@@ -23,30 +27,50 @@ export const ExportMenu = ({ isOpen, onToggle, onExport, disabled }: ExportMenuP
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full right-0 mb-2 w-full bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50">
+        <div className={`absolute bottom-full right-0 mb-2 w-full rounded-lg shadow-xl border overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50 ${
+          isDark 
+            ? 'bg-slate-800 border-slate-600' 
+            : 'bg-white border-gray-200'
+        }`}>
           <button
-            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+            className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 ${
+              isDark 
+                ? 'hover:bg-slate-700 text-slate-200' 
+                : 'hover:bg-gray-50 text-gray-700'
+            }`}
             onClick={() => onExport('html')}
           >
             <Code size={14} className="text-blue-500" />
             Export as HTML
           </button>
           <button
-            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700 border-t border-gray-100"
+            className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 border-t ${
+              isDark 
+                ? 'hover:bg-slate-700 text-slate-200 border-slate-700' 
+                : 'hover:bg-gray-50 text-gray-700 border-gray-100'
+            }`}
             onClick={() => onExport('pdf')}
           >
             <FileText size={14} className="text-red-500" />
             Export as PDF
           </button>
           <button
-            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700 border-t border-gray-100"
+            className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 border-t ${
+              isDark 
+                ? 'hover:bg-slate-700 text-slate-200 border-slate-700' 
+                : 'hover:bg-gray-50 text-gray-700 border-gray-100'
+            }`}
             onClick={() => onExport('markdown')}
           >
             <FileType size={14} className="text-purple-500" />
             Export as Markdown
           </button>
           <button
-            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700 border-t border-gray-100"
+            className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 border-t ${
+              isDark 
+                ? 'hover:bg-slate-700 text-slate-200 border-slate-700' 
+                : 'hover:bg-gray-50 text-gray-700 border-gray-100'
+            }`}
             onClick={() => onExport('json')}
           >
             <FileJson size={14} className="text-amber-500" />

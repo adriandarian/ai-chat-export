@@ -13,28 +13,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('light');
 
   useEffect(() => {
-    // Load saved theme
+    // Load saved theme (default to light)
     try {
       if (!chrome?.runtime?.id) {
-        // Extension context invalidated, use default
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          setThemeState('dark');
-        }
+        // Extension context invalidated, use default light theme
         return;
       }
       chrome.storage.local.get(['theme'], (result) => {
         if (result.theme) {
           setThemeState(result.theme as Theme);
-        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          setThemeState('dark');
         }
+        // Default to light theme if no preference saved
       });
     } catch (e) {
-      // Extension context invalidated or storage unavailable, use default
+      // Extension context invalidated or storage unavailable, use default light theme
       console.warn('Could not access storage:', e);
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        setThemeState('dark');
-      }
     }
   }, []);
 
