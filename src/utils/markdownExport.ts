@@ -112,8 +112,9 @@ const processNode = (node: Node, preserveWhitespace = false): string => {
       const dataRole = el.getAttribute('data-message-author-role')?.toLowerCase() || '';
       
       // Only add role markers if there's actual content and it's a direct role attribute
+      // Don't add --- dividers here - they're added by the join in generateExportMarkdown
       if (dataRole === 'user' || dataRole === 'human') {
-        return trimmedChildren ? `\n---\n\n**User:**\n\n${trimmedChildren}\n` : '';
+        return trimmedChildren ? `\n**User:**\n\n${trimmedChildren}\n` : '';
       }
       if (dataRole === 'assistant' || dataRole === 'ai' || dataRole === 'bot') {
         return trimmedChildren ? `\n**Assistant:**\n\n${trimmedChildren}\n` : '';
