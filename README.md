@@ -1,11 +1,18 @@
 # <img src="src/assets/logo.svg" width="32" height="32" align="center" /> AI Chat Export Extension
 
-This browser extension allows you to highlight and export chat messages or any other elements from a webpage into a clean HTML file (preserving styles) or PDF (via print).
+[![Release](https://img.shields.io/github/v/release/adriandarian/ai-chat-export?style=flat-square)](https://github.com/adriandarian/ai-chat-export/releases/latest)
+[![License](https://img.shields.io/github/license/adriandarian/ai-chat-export?style=flat-square)](LICENSE)
+[![Semantic Release](https://img.shields.io/badge/semantic--release-conventionalcommits-e10079?style=flat-square&logo=semantic-release)](https://github.com/semantic-release/semantic-release)
+
+A browser extension to export AI chat conversations from various platforms. Supports multiple export formats including HTML, PDF, Markdown, and JSON.
 
 ## Features
 - **Element Selector**: Hover to highlight specific chat bubbles or containers.
 - **Multi-Selection**: Select multiple messages to export at once.
 - **Smart Export**: Generates a self-contained HTML file including the page's styles, ensuring the export looks like the original.
+- **Multiple Export Formats**: HTML, PDF, Markdown, and JSON
+- **Syntax Highlighting**: Preserves code block formatting in exports
+- **Dark/Light Theme**: Adapts to your system preferences
 
 ## Supported Browsers
 
@@ -110,10 +117,38 @@ packages/
 └── ...
 ```
 
+## Releases
+
+This project uses [semantic-release](https://github.com/semantic-release/semantic-release) for automated versioning and releases. Each release includes pre-built extension packages for all supported browsers.
+
+### Download Pre-built Extensions
+
+Visit the [Releases page](https://github.com/adriandarian/ai-chat-export/releases/latest) to download the latest version for your browser.
+
+### Commit Message Convention
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+| Type | Description | Release |
+|------|-------------|---------|
+| `feat:` | A new feature | Minor |
+| `fix:` | A bug fix | Patch |
+| `perf:` | Performance improvement | Patch |
+| `docs:` | Documentation only | None |
+| `style:` | Code style changes | None |
+| `refactor:` | Code refactoring | Patch |
+| `test:` | Adding tests | None |
+| `build:` | Build system changes | Patch |
+| `ci:` | CI configuration | None |
+| `chore:` | Other changes | None |
+
+Breaking changes should include `BREAKING CHANGE:` in the commit body.
+
 ## Documentation
 
 - [Browser Support Guide](./BROWSER_SUPPORT.md) - Detailed installation & submission guides
 - [Safari Setup Guide](./SAFARI_SETUP.md) - Safari-specific instructions
+- [Changelog](./CHANGELOG.md) - Version history and changes
 
 ## Contributing
 

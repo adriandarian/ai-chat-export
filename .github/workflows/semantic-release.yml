@@ -1,0 +1,198 @@
+name: Semantic Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (no actual release)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Semantic Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          dry_run: ${{ inputs.dry_run }}
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/git
+            conventional-changelog-conventionalcommits
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Output
+        if: steps.semantic.outputs.new_release_published == 'true'
+        run: |
+          echo "New release published: ${{ steps.semantic.outputs.new_release_published }}"
+          echo "New release version: ${{ steps.semantic.outputs.new_release_version }}"
+          echo "New release git tag: ${{ steps.semantic.outputs.new_release_git_tag }}"
+
+  build:
+    name: Build Extensions
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: [chrome, firefox, safari, edge, opera, brave]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release.outputs.new_release_version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension for ${{ matrix.browser }}
+        run: |
+          echo "Building version: ${{ needs.release.outputs.new_release_version }} for ${{ matrix.browser }}"
+          npm run build:${{ matrix.browser }}
+        env:
+          BROWSER: ${{ matrix.browser }}
+
+      - name: Create zip package
+        run: |
+          mkdir -p packages
+          cd dist/${{ matrix.browser }}
+          zip -r ../../packages/ai-chat-export-${{ matrix.browser }}-v${{ needs.release.outputs.new_release_version }}.zip . -x '*.map'
+          cd ../..
+          ls -lh packages/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-chat-export-${{ matrix.browser }}
+          path: packages/ai-chat-export-${{ matrix.browser }}-v${{ needs.release.outputs.new_release_version }}.zip
+          retention-days: 5
+
+  attach-assets:
+    name: Attach Assets to Release
+    needs: [release, build]
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release.outputs.new_release_version }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -name "*.zip" -exec mv {} release-assets/ \;
+          ls -lh release-assets/
+
+      - name: Generate Release Notes
+        run: |
+          VERSION="${{ needs.release.outputs.new_release_version }}"
+          
+          cat > release-assets/RELEASE_NOTES.md << EOF
+          ## 📦 Downloads
+          
+          | Browser | Download | Engine |
+          |---------|----------|--------|
+          | Chrome | [ai-chat-export-chrome-v${VERSION}.zip](https://github.com/${{ github.repository }}/releases/download/v${VERSION}/ai-chat-export-chrome-v${VERSION}.zip) | Chromium |
+          | Firefox | [ai-chat-export-firefox-v${VERSION}.zip](https://github.com/${{ github.repository }}/releases/download/v${VERSION}/ai-chat-export-firefox-v${VERSION}.zip) | Gecko |
+          | Safari | [ai-chat-export-safari-v${VERSION}.zip](https://github.com/${{ github.repository }}/releases/download/v${VERSION}/ai-chat-export-safari-v${VERSION}.zip) | WebKit |
+          | Edge | [ai-chat-export-edge-v${VERSION}.zip](https://github.com/${{ github.repository }}/releases/download/v${VERSION}/ai-chat-export-edge-v${VERSION}.zip) | Chromium |
+          | Opera | [ai-chat-export-opera-v${VERSION}.zip](https://github.com/${{ github.repository }}/releases/download/v${VERSION}/ai-chat-export-opera-v${VERSION}.zip) | Chromium |
+          | Brave | [ai-chat-export-brave-v${VERSION}.zip](https://github.com/${{ github.repository }}/releases/download/v${VERSION}/ai-chat-export-brave-v${VERSION}.zip) | Chromium |
+          
+          ## 🚀 Installation
+          
+          ### Chrome / Edge / Brave / Opera
+          1. Download the appropriate zip file for your browser
+          2. Extract the zip file
+          3. Open your browser's Extensions page:
+             - Chrome: \`chrome://extensions\`
+             - Edge: \`edge://extensions\`
+             - Brave: \`brave://extensions\`
+             - Opera: \`opera://extensions\`
+          4. Enable "Developer mode"
+          5. Click "Load unpacked" and select the extracted folder
+          
+          ### Firefox
+          1. Download \`ai-chat-export-firefox-v${VERSION}.zip\`
+          2. Extract the zip file
+          3. Open \`about:debugging#/runtime/this-firefox\`
+          4. Click "Load Temporary Add-on..."
+          5. Select any file in the extracted folder
+          
+          ### Safari
+          1. Download \`ai-chat-export-safari-v${VERSION}.zip\`
+          2. See [SAFARI_SETUP.md](https://github.com/${{ github.repository }}/blob/main/SAFARI_SETUP.md) for detailed instructions
+          
+          ## 📋 Changelog
+          
+          See the [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the full list of changes.
+          EOF
+
+      - name: Update Release with Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.release.outputs.new_release_version }}
+          files: |
+            release-assets/*.zip
+          body_path: release-assets/RELEASE_NOTES.md
+          append_body: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## 🎉 Release Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ needs.release.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Assets Uploaded:" >> $GITHUB_STEP_SUMMARY
+          for file in release-assets/*.zip; do
+            echo "- $(basename $file)" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View Release](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.release.outputs.new_release_version }})" >> $GITHUB_STEP_SUMMARY
