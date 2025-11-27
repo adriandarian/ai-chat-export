@@ -1,63 +1,118 @@
 /**
- * File download utilities with native save picker support
+ * File download utilities with Chrome extension downloads API support
+ * Uses chrome.downloads.download with saveAs: true to show file picker
  */
 
 /**
- * Map file extensions to descriptions and accept types for save dialog
+ * Convert a Blob to base64 string for sending via message passing
  */
-const getFileTypeInfo = (filename: string): { description: string; accept: Record<string, string[]> } => {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  
-  switch (ext) {
-    case 'html':
-      return { description: 'HTML Document', accept: { 'text/html': ['.html', '.htm'] } };
-    case 'json':
-      return { description: 'JSON File', accept: { 'application/json': ['.json'] } };
-    case 'md':
-      return { description: 'Markdown Document', accept: { 'text/markdown': ['.md', '.markdown'] } };
-    case 'pdf':
-      return { description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } };
-    default:
-      return { description: 'Text File', accept: { 'text/plain': ['.txt'] } };
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      // Remove the data URL prefix to get just the base64 data
+      const base64 = dataUrl.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+/**
+ * Check if Chrome extension APIs are available
+ */
+const isChromeExtensionContext = (): boolean => {
+  try {
+    return !!(
+      typeof chrome !== 'undefined' && 
+      chrome.runtime && 
+      chrome.runtime.id && 
+      chrome.runtime.sendMessage
+    );
+  } catch {
+    return false;
   }
 };
 
 /**
- * Download a blob using the File System Access API (save picker) when available
+ * Download a blob using Chrome's downloads API with saveAs dialog
  * @returns true if file was saved, false if user cancelled
  */
 export const downloadBlobWithPicker = async (
   blob: Blob, 
   filename: string, 
-  description: string, 
-  accept: Record<string, string[]>
+  _description: string, 
+  _accept: Record<string, string[]>
 ): Promise<boolean> => {
-  // Try to use the File System Access API for "Save As" dialog
-  if ('showSaveFilePicker' in window) {
+  // Use Chrome extension downloads API via background script
+  if (isChromeExtensionContext()) {
     try {
-      const handle = await (window as any).showSaveFilePicker({
-        suggestedName: filename,
-        types: [{
-          description,
-          accept,
-        }],
-      });
+      console.log('[Download] Converting blob to base64 for:', filename);
+      const blobData = await blobToBase64(blob);
+      console.log('[Download] Sending message to background script, blob size:', blobData.length);
       
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
+      return new Promise((resolve) => {
+        // Set a timeout in case the background script doesn't respond
+        const timeoutId = setTimeout(() => {
+          console.warn('[Download] Background script timeout, using fallback');
+          fallbackDownload(blob, filename);
+          resolve(true);
+        }, 10000);
+        
+        chrome.runtime.sendMessage(
+          {
+            type: 'download',
+            blobData,
+            filename,
+            mimeType: blob.type,
+          },
+          (response) => {
+            clearTimeout(timeoutId);
+            
+            if (chrome.runtime.lastError) {
+              console.warn('[Download] Message failed:', chrome.runtime.lastError.message);
+              fallbackDownload(blob, filename);
+              resolve(true);
+              return;
+            }
+            
+            if (response && response.success) {
+              console.log('[Download] Success, downloadId:', response.downloadId);
+              resolve(true);
+            } else if (response && response.error) {
+              console.warn('[Download] Failed:', response.error);
+              fallbackDownload(blob, filename);
+              resolve(true);
+            } else {
+              // No response or unexpected response - background may not be running
+              console.warn('[Download] No valid response from background, using fallback');
+              fallbackDownload(blob, filename);
+              resolve(true);
+            }
+          }
+        );
+      });
+    } catch (err) {
+      console.warn('[Download] Chrome downloads API failed, falling back:', err);
+      fallbackDownload(blob, filename);
       return true;
-    } catch (err: any) {
-      // User cancelled the save dialog
-      if (err.name === 'AbortError') {
-        return false; // Indicate user cancelled
-      }
-      // For other errors, fall back to traditional download
-      console.warn('File System Access API failed, falling back to download:', err);
     }
   }
   
-  // Fallback: traditional download
+  // Not in extension context - use fallback
+  console.log('[Download] Not in extension context, using fallback');
+  fallbackDownload(blob, filename);
+  return true;
+};
+
+/**
+ * Fallback download using traditional anchor element
+ * Note: This won't show a "Save As" dialog - file goes to default downloads folder
+ */
+const fallbackDownload = (blob: Blob, filename: string): void => {
+  console.log('[Download] Using fallback download for:', filename);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -66,50 +121,14 @@ export const downloadBlobWithPicker = async (
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  return true;
 };
 
 /**
  * Download content as a blob file
  */
 export const downloadBlob = async (content: string, filename: string, contentType: string): Promise<void> => {
+  console.log('[Download] downloadBlob called for:', filename, 'type:', contentType);
   const blob = new Blob([content], { type: contentType });
-  
-  // Try to use the File System Access API for "Save As" dialog
-  if ('showSaveFilePicker' in window) {
-    try {
-      const fileTypeInfo = getFileTypeInfo(filename);
-      const handle = await (window as any).showSaveFilePicker({
-        suggestedName: filename,
-        types: [{
-          description: fileTypeInfo.description,
-          accept: fileTypeInfo.accept,
-        }],
-      });
-      
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
-    } catch (err: any) {
-      // User cancelled the save dialog or API not fully supported
-      if (err.name === 'AbortError') {
-        // User cancelled - don't fall back, just return
-        return;
-      }
-      // For other errors, fall back to traditional download
-      console.warn('File System Access API failed, falling back to download:', err);
-    }
-  }
-  
-  // Fallback: traditional download (for browsers without File System Access API)
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  await downloadBlobWithPicker(blob, filename, '', {});
 };
 

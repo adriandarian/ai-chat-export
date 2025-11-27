@@ -13,7 +13,7 @@ import {
 
 export const ContentApp = () => {
   const [isActive, setIsActive] = useState(false);
-  const [selectionMode, setSelectionMode] = useState<SelectionMode>('element');
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('conversation');
   const [selectedElements, setSelectedElements] = useState<SelectedElement[]>([]);
   const [hoverRect, setHoverRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);

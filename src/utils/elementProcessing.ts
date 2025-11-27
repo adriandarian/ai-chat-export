@@ -238,6 +238,37 @@ const applyComputedStyles = (el: HTMLElement): void => {
 };
 
 /**
+ * Clean up problematic CSS properties for export
+ */
+const cleanupStylesForExport = (el: HTMLElement): void => {
+  // Remove properties that cause positioning issues in PDF
+  const problematicProps = [
+    'position', 'top', 'left', 'right', 'bottom', 
+    'transform', 'translate', 'z-index',
+    'sticky', 'fixed'
+  ];
+  
+  const style = el.style;
+  problematicProps.forEach(prop => {
+    const value = style.getPropertyValue(prop);
+    // Only reset if it's a problematic value
+    if (prop === 'position' && (value === 'fixed' || value === 'sticky' || value === 'absolute')) {
+      style.setProperty('position', 'relative');
+    }
+  });
+  
+  // Ensure visibility
+  style.setProperty('overflow', 'visible', 'important');
+  style.setProperty('max-height', 'none', 'important');
+  style.setProperty('height', 'auto');
+  
+  // Process children
+  Array.from(el.children).forEach(child => {
+    cleanupStylesForExport(child as HTMLElement);
+  });
+};
+
+/**
  * Enhance element HTML with stored computed styles or find original element
  */
 export const enhanceElementWithStyles = (element: SelectedElement): string => {
@@ -304,20 +335,22 @@ export const enhanceElementWithStyles = (element: SelectedElement): string => {
     });
     
     applyComputedStyles(clone);
+    cleanupStylesForExport(clone);
     return clone.outerHTML;
   }
   
-  // Fallback: use stored computed styles if available
-  if (element.computedStyles && Object.keys(element.computedStyles).length > 0) {
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(element.content, 'text/html');
-      const rootEl = doc.body.firstElementChild as HTMLElement;
+  // Fallback: parse content and apply styles
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(element.content, 'text/html');
+    const rootEl = doc.body.firstElementChild as HTMLElement;
+    
+    if (rootEl) {
+      // Filter out header/footer UI elements
+      filterNonConversationElements(rootEl);
       
-      if (rootEl) {
-        // Filter out header/footer UI elements
-        filterNonConversationElements(rootEl);
-        
+      // Apply stored computed styles if available
+      if (element.computedStyles && Object.keys(element.computedStyles).length > 0) {
         const styleString = Object.entries(element.computedStyles)
           .map(([prop, value]) => {
             const kebabProp = prop.replace(/([A-Z])/g, '-$1').toLowerCase();
@@ -327,25 +360,18 @@ export const enhanceElementWithStyles = (element: SelectedElement): string => {
         
         const existingStyle = rootEl.getAttribute('style') || '';
         rootEl.setAttribute('style', `${existingStyle}${existingStyle ? '; ' : ''}${styleString}`);
-        return rootEl.outerHTML;
       }
-    } catch (err) {
-      console.warn('Error applying stored styles:', err);
-    }
-  }
-  
-  // Final fallback: parse and filter the original content
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(element.content, 'text/html');
-    const rootEl = doc.body.firstElementChild as HTMLElement;
-    if (rootEl) {
-      filterNonConversationElements(rootEl);
+      
+      // Clean up positioning issues
+      cleanupStylesForExport(rootEl);
+      
       return rootEl.outerHTML;
     }
-  } catch (e) {
-    // If parsing fails, return as-is
+  } catch (err) {
+    console.warn('Error processing element content:', err);
   }
+  
+  // Final fallback: return as-is
   return element.content;
 };
 
