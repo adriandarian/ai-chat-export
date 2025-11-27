@@ -1,10 +1,8 @@
 import { X, Check, Loader2 } from 'lucide-react';
-import { SelectedElement } from '../types';
-import { SelectionModeToggle, SelectionMode } from './SelectionModeToggle';
+import { SelectedElement, SelectionMode, ExportFormat, Theme } from '../types';
+import { SelectionModeToggle } from './SelectionModeToggle';
 import { SelectedItemsList } from './SelectedItemsList';
-import { ExportMenu, ExportFormat } from './ExportMenu';
-
-type Theme = 'light' | 'dark' | 'midnight';
+import { ExportMenu } from './ExportMenu';
 
 interface SelectionPanelProps {
   isActive: boolean;
@@ -167,4 +165,3 @@ export const SelectionPanel = ({
     </div>
   );
 };
-

@@ -2,101 +2,24 @@
  * JSON Export - Converts selected chat elements into structured prompt-response pairs
  */
 
-import { SelectedElement } from '../types';
-
-/**
- * Content types that can appear in messages
- */
-export interface TextContent {
-  type: 'text';
-  content: string;
-}
-
-export interface CodeBlockContent {
-  type: 'code';
-  language: string;
-  content: string;
-}
-
-export interface ListContent {
-  type: 'list';
-  ordered: boolean;
-  items: string[];
-}
-
-export interface ImageContent {
-  type: 'image';
-  src: string;
-  alt: string;
-}
-
-export interface LinkContent {
-  type: 'link';
-  text: string;
-  url: string;
-}
-
-export type MessageContent = TextContent | CodeBlockContent | ListContent | ImageContent | LinkContent;
-
-/**
- * A single message in the conversation
- */
-export interface MessageData {
-  role: 'user' | 'assistant';
-  content: MessageContent[];
-  timestamp?: string;
-}
-
-/**
- * A prompt-response exchange
- */
-export interface Exchange {
-  prompt: {
-    content: MessageContent[];
-    timestamp?: string;
-  };
-  response: {
-    content: MessageContent[];
-    timestamp?: string;
-  };
-  metadata?: {
-    index: number;
-  };
-}
-
-/**
- * The full export structure
- */
-export interface ChatExport {
-  exportedAt: string;
-  source: string;
-  exchanges: Exchange[];
-  metadata?: {
-    totalExchanges: number;
-    exportVersion: string;
-  };
-}
-
-/**
- * Known programming languages for code detection
- */
-const KNOWN_LANGUAGES = [
-  'javascript', 'js', 'typescript', 'ts', 'python', 'py', 'java', 'c', 'cpp', 
-  'csharp', 'cs', 'go', 'rust', 'ruby', 'php', 'swift', 'kotlin', 'scala',
-  'html', 'css', 'scss', 'less', 'json', 'xml', 'yaml', 'yml', 'markdown', 'md',
-  'sql', 'bash', 'sh', 'shell', 'zsh', 'powershell', 'dockerfile', 'makefile',
-  'plaintext', 'text', 'diff', 'graphql', 'toml', 'ini', 'env', 'jsx', 'tsx'
-];
+import { 
+  SelectedElement, 
+  MessageData, 
+  MessageContent,
+  TextContent,
+  Exchange,
+  ChatExport,
+  MessageRole,
+} from '../types';
+import { detectLanguageFromElement, cleanCodeContent, isKnownLanguage } from './languageDetection';
+import { isUserMessage, isAssistantMessage, guessRoleFromContent } from './messageRoles';
 
 /**
  * Detect language from element classes and attributes
  */
 const detectLanguage = (element: Element): string => {
-  const className = element.className?.toString() || '';
-  const langMatch = className.match(/language-(\w+)|lang-(\w+)|hljs\s+(\w+)/);
-  if (langMatch) {
-    return langMatch[1] || langMatch[2] || langMatch[3] || '';
-  }
+  let lang = detectLanguageFromElement(element);
+  if (lang) return lang;
   
   const dataLang = element.getAttribute('data-language');
   if (dataLang) return dataLang;
@@ -107,57 +30,13 @@ const detectLanguage = (element: Element): string => {
     const langSpan = parent.querySelector('span');
     if (langSpan && langSpan.textContent) {
       const potentialLang = langSpan.textContent.toLowerCase().trim();
-      if (KNOWN_LANGUAGES.includes(potentialLang)) {
+      if (isKnownLanguage(potentialLang)) {
         return potentialLang;
       }
     }
   }
   
   return 'plaintext';
-};
-
-/**
- * Clean code content by removing toolbar artifacts
- */
-const cleanCodeContent = (text: string): string => {
-  return text
-    .replace(/^[\s]*Copy code[\s]*/i, '')
-    .replace(/^[\s]*Copy[\s]*/i, '')
-    .replace(/^(json|javascript|js|python|py|bash|sh|html|css|typescript|ts|java|cpp?|go|rust|sql|yaml|xml|shell|plaintext)[\s]*Copy code[\s]*/i, '')
-    .replace(/^(json|javascript|js|python|py|bash|sh|html|css|typescript|ts|java|cpp?|go|rust|sql|yaml|xml|shell|plaintext)[\s]*$/im, '')
-    .trim();
-};
-
-/**
- * Detect if element is a user message container
- */
-const isUserMessage = (element: Element): boolean => {
-  const dataRole = element.getAttribute('data-message-author-role');
-  if (dataRole === 'user') return true;
-  
-  const className = element.className?.toString().toLowerCase() || '';
-  if (className.includes('user')) return true;
-  
-  // Check for ChatGPT's user message indicator
-  if (element.querySelector('[data-message-author-role="user"]')) return true;
-  
-  return false;
-};
-
-/**
- * Detect if element is an assistant message container
- */
-const isAssistantMessage = (element: Element): boolean => {
-  const dataRole = element.getAttribute('data-message-author-role');
-  if (dataRole === 'assistant') return true;
-  
-  const className = element.className?.toString().toLowerCase() || '';
-  if (className.includes('assistant') || className.includes('agent-turn') || className.includes('bot')) return true;
-  
-  // Check for ChatGPT's assistant message indicator
-  if (element.querySelector('[data-message-author-role="assistant"]')) return true;
-  
-  return false;
 };
 
 /**
@@ -227,7 +106,7 @@ const parseMessageContent = (element: Element): MessageContent[] => {
     // Handle images
     if (tagName === 'img') {
       const img = el as HTMLImageElement;
-      let src = img.src;
+      const src = img.src;
       
       // Skip tiny images (likely icons)
       if (img.width < 20 || img.height < 20) return;
@@ -354,8 +233,8 @@ const parseMessageContent = (element: Element): MessageContent[] => {
 /**
  * Find all message containers within an element
  */
-const findMessageContainers = (element: Element): { role: 'user' | 'assistant'; element: Element }[] => {
-  const messages: { role: 'user' | 'assistant'; element: Element }[] = [];
+const findMessageContainers = (element: Element): { role: MessageRole; element: Element }[] => {
+  const messages: { role: MessageRole; element: Element }[] = [];
   
   // Common selectors for message containers
   const messageSelectors = [
@@ -424,16 +303,9 @@ const parseHtmlToMessages = (html: string): MessageData[] => {
     });
   } else {
     // Fallback: treat entire content as a single message
-    // Try to detect role from content
     const content = parseMessageContent(doc.body);
     if (content.length > 0) {
-      // Guess role based on content characteristics
-      const text = doc.body.textContent?.toLowerCase() || '';
-      const hasCodeBlocks = doc.body.querySelector('pre') !== null;
-      const isLongResponse = text.length > 500;
-      
-      // Likely assistant if has code blocks or is long
-      const role = (hasCodeBlocks || isLongResponse) ? 'assistant' : 'user';
+      const role = guessRoleFromContent(doc.body);
       messages.push({ role, content });
     }
   }
@@ -560,4 +432,3 @@ export const generateSimpleExportJSON = (elements: SelectedElement[]): string =>
   // Return just the array
   return JSON.stringify(exchanges, null, 2);
 };
-

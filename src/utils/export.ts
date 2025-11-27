@@ -9,10 +9,11 @@
  * - htmlExport.ts: HTML generation
  * - markdownExport.ts: Markdown conversion
  * - pdfExport.ts: PDF generation
- * - pdfContentParser.ts: PDF content parsing
- * - pdfLayout.ts: PDF layout calculations
- * - pdfRenderer.ts: PDF rendering
+ * - jsonExport.ts: JSON export
  * - download.ts: File download utilities
+ * - languageDetection.ts: Code language detection
+ * - messageRoles.ts: User/assistant message detection
+ * - conversationDetection.ts: Chat container detection and collection
  */
 
 // Style utilities
@@ -26,8 +27,32 @@ export {
 // Syntax highlighting
 export {
   highlightCode,
-  KNOWN_LANGUAGES,
 } from './syntaxHighlighting';
+
+// Language detection
+export {
+  KNOWN_LANGUAGES,
+  isKnownLanguage,
+  detectLanguage,
+  detectLanguageFromElement,
+  cleanCodeContent,
+  extractCodeContent,
+} from './languageDetection';
+
+// Message role detection
+export {
+  isUserMessage,
+  isAssistantMessage,
+  detectMessageRole,
+  guessRoleFromContent,
+} from './messageRoles';
+
+// Conversation detection
+export {
+  findConversationContainer,
+  findScrollableElement,
+  collectFullConversation,
+} from './conversationDetection';
 
 // Code block processing
 export {

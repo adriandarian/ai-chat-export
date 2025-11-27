@@ -1,7 +1,5 @@
 import { MousePointer2, MessageSquare } from 'lucide-react';
-
-export type SelectionMode = 'element' | 'conversation';
-type Theme = 'light' | 'dark' | 'midnight';
+import { SelectionMode, Theme } from '../types';
 
 interface SelectionModeToggleProps {
   mode: SelectionMode;
@@ -49,4 +47,3 @@ export const SelectionModeToggle = ({ mode, onModeChange, theme = 'light' }: Sel
     </div>
   );
 };
-

@@ -132,13 +132,6 @@ export const highlightCode = (code: string, language: string): string => {
   return escaped;
 };
 
-/**
- * List of known programming languages for detection
- */
-export const KNOWN_LANGUAGES = [
-  'json', 'javascript', 'js', 'python', 'py', 'bash', 'sh', 
-  'html', 'css', 'typescript', 'ts', 'java', 'c', 'cpp', 
-  'go', 'rust', 'sql', 'yaml', 'xml', 'shell', 'zsh', 
-  'scss', 'less', 'svg', 'plaintext'
-];
+// Re-export KNOWN_LANGUAGES from the centralized location
+export { KNOWN_LANGUAGES } from './languageDetection';
 

@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-
-export type Theme = 'light' | 'dark' | 'midnight';
+import { Theme } from '../types';
 
 interface ThemeContextType {
   theme: Theme;
@@ -64,4 +63,3 @@ export function useTheme() {
   }
   return context;
 }
-

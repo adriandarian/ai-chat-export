@@ -1,7 +1,5 @@
 import { FileDown, ChevronDown, Code, FileText, FileType, FileJson } from 'lucide-react';
-
-export type ExportFormat = 'html' | 'pdf' | 'json' | 'markdown';
-type Theme = 'light' | 'dark' | 'midnight';
+import { ExportFormat, Theme } from '../types';
 
 interface ExportMenuProps {
   isOpen: boolean;
@@ -81,4 +79,3 @@ export const ExportMenu = ({ isOpen, onToggle, onExport, disabled, theme = 'ligh
     </div>
   );
 };
-

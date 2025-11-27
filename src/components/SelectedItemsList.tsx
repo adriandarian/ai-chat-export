@@ -1,8 +1,5 @@
 import { Trash2, MousePointer2, MessageSquare } from 'lucide-react';
-import { SelectedElement } from '../types';
-import { SelectionMode } from './SelectionModeToggle';
-
-type Theme = 'light' | 'dark' | 'midnight';
+import { SelectedElement, SelectionMode, Theme } from '../types';
 
 interface SelectedItemsListProps {
   items: SelectedElement[];
@@ -75,4 +72,3 @@ export const SelectedItemsList = ({ items, selectionMode, onRemove, theme = 'lig
     </ul>
   );
 };
-

@@ -4,6 +4,5 @@ export { SelectedItemsList } from './SelectedItemsList';
 export { ExportMenu } from './ExportMenu';
 export { SelectionPanel } from './SelectionPanel';
 
-export type { SelectionMode } from './SelectionModeToggle';
-export type { ExportFormat } from './ExportMenu';
-
+// Re-export types from central types.ts
+export type { SelectionMode, ExportFormat, Theme } from '../types';

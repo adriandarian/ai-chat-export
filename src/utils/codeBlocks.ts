@@ -2,50 +2,11 @@
  * Code block processing and rebuilding for exports
  */
 
-import { highlightCode, KNOWN_LANGUAGES } from './syntaxHighlighting';
+import { highlightCode } from './syntaxHighlighting';
+import { detectLanguage, cleanCodeContent, KNOWN_LANGUAGES } from './languageDetection';
 
-/**
- * Detect the programming language from various element attributes and classes
- */
-const detectLanguage = (preEl: HTMLElement, codeEl: HTMLElement | null): string => {
-  // Check for language in various places
-  const classesToCheck = [
-    codeEl?.className || '',
-    preEl.className || '',
-    preEl.closest('[class*="language-"]')?.className || '',
-    preEl.closest('[data-language]')?.getAttribute('data-language') || ''
-  ].join(' ');
-  
-  const langMatch = classesToCheck.match(/language-(\w+)|lang-(\w+)|hljs\s+(\w+)/);
-  if (langMatch) {
-    return langMatch[1] || langMatch[2] || langMatch[3] || '';
-  }
-  
-  // Also check for language label in nearby elements (ChatGPT puts it in a span)
-  const codeBlockWrapper = preEl.closest('[class*="code"]') || preEl.parentElement;
-  if (codeBlockWrapper) {
-    const langSpan = codeBlockWrapper.querySelector('span');
-    if (langSpan && langSpan.textContent && langSpan.textContent.length < 20) {
-      const potentialLang = langSpan.textContent.toLowerCase().trim();
-      if (KNOWN_LANGUAGES.includes(potentialLang)) {
-        return potentialLang;
-      }
-    }
-  }
-  
-  return '';
-};
-
-/**
- * Clean up code content by removing toolbar artifacts
- */
-const cleanCodeContent = (textContent: string): string => {
-  return textContent
-    .replace(/^[\s]*Copy code[\s]*/i, '')
-    .replace(/^[\s]*Copy[\s]*/i, '')
-    .replace(/^(json|javascript|js|python|py|bash|sh|html|css|typescript|ts|java|cpp?|go|rust|sql|yaml|xml|shell|plaintext)[\s]*Copy code[\s]*/i, '')
-    .replace(/^(json|javascript|js|python|py|bash|sh|html|css|typescript|ts|java|cpp?|go|rust|sql|yaml|xml|shell|plaintext)[\s]*/i, '');
-};
+// Re-export for backward compatibility
+export { KNOWN_LANGUAGES };
 
 /**
  * Create a styled code wrapper with language badge
@@ -140,7 +101,7 @@ export const rebuildCodeBlocks = (container: HTMLElement): void => {
   // Find all pre elements and rebuild them with just the text content
   container.querySelectorAll('pre').forEach((pre) => {
     const preEl = pre as HTMLElement;
-    const codeEl = preEl.querySelector('code');
+    const codeEl = preEl.querySelector('code') as HTMLElement | null;
     
     // Detect the language
     const language = detectLanguage(preEl, codeEl);
@@ -201,4 +162,3 @@ export const rebuildCodeBlocks = (container: HTMLElement): void => {
  * Legacy function name for compatibility
  */
 export const fixCodeBlocks = rebuildCodeBlocks;
-
