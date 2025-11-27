@@ -25,7 +25,7 @@
     "bundle:report": "bun run scripts/analyze-bundle.ts chrome --json",
     "lint": "oxlint --config oxlint.json src/",
     "lint:fix": "oxlint --config oxlint.json --fix src/",
-    "format": "oxfmt --write src/",
+    "format": "oxfmt src/",
     "format:check": "oxfmt --check src/",
     "test": "vitest run",
     "test:watch": "vitest",

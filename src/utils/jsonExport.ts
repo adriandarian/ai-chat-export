@@ -2,17 +2,17 @@
  * JSON Export - Converts selected chat elements into structured prompt-response pairs
  */
 
-import { 
-  SelectedElement, 
-  MessageData, 
+import {
+  SelectedElement,
+  MessageData,
   MessageContent,
   TextContent,
   Exchange,
   ChatExport,
   MessageRole,
-} from '../types';
-import { detectLanguageFromElement, cleanCodeContent, isKnownLanguage } from './languageDetection';
-import { isUserMessage, isAssistantMessage, guessRoleFromContent } from './messageRoles';
+} from "../types";
+import { detectLanguageFromElement, cleanCodeContent, isKnownLanguage } from "./languageDetection";
+import { isUserMessage, isAssistantMessage, guessRoleFromContent } from "./messageRoles";
 
 /**
  * Detect language from element classes and attributes
@@ -20,14 +20,14 @@ import { isUserMessage, isAssistantMessage, guessRoleFromContent } from './messa
 const detectLanguage = (element: Element): string => {
   let lang = detectLanguageFromElement(element);
   if (lang) return lang;
-  
-  const dataLang = element.getAttribute('data-language');
+
+  const dataLang = element.getAttribute("data-language");
   if (dataLang) return dataLang;
-  
+
   // Check for language in nearby text (ChatGPT style)
   const parent = element.parentElement;
   if (parent) {
-    const langSpan = parent.querySelector('span');
+    const langSpan = parent.querySelector("span");
     if (langSpan && langSpan.textContent) {
       const potentialLang = langSpan.textContent.toLowerCase().trim();
       if (isKnownLanguage(potentialLang)) {
@@ -35,41 +35,42 @@ const detectLanguage = (element: Element): string => {
       }
     }
   }
-  
-  return 'plaintext';
+
+  return "plaintext";
 };
 
 /**
  * Extract text content from an element, preserving some structure
+ * @internal Reserved for future use in text extraction
  */
-const extractText = (element: Element): string => {
-  let text = '';
-  
-  element.childNodes.forEach(node => {
+const _extractText = (element: Element): string => {
+  let text = "";
+
+  element.childNodes.forEach((node) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      text += node.textContent || '';
+      text += node.textContent || "";
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
       const tag = el.tagName.toLowerCase();
-      
+
       // Skip certain elements
-      if (tag === 'pre' || tag === 'code') return;
-      if (tag === 'button') return;
-      if (el.classList.contains('copy') || el.getAttribute('data-state')) return;
-      
+      if (tag === "pre" || tag === "code") return;
+      if (tag === "button") return;
+      if (el.classList.contains("copy") || el.getAttribute("data-state")) return;
+
       // Add line breaks for block elements
-      if (['p', 'div', 'br', 'li'].includes(tag)) {
-        text += '\n';
+      if (["p", "div", "br", "li"].includes(tag)) {
+        text += "\n";
       }
-      
-      text += extractText(el);
-      
-      if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
-        text += '\n';
+
+      text += _extractText(el);
+
+      if (["p", "div", "h1", "h2", "h3", "h4", "h5", "h6"].includes(tag)) {
+        text += "\n";
       }
     }
   });
-  
+
   return text;
 };
 
@@ -78,156 +79,158 @@ const extractText = (element: Element): string => {
  */
 const parseMessageContent = (element: Element): MessageContent[] => {
   const contents: MessageContent[] = [];
-  
+
   const processElement = (el: Element) => {
     const tagName = el.tagName?.toLowerCase();
-    
+
     // Handle code blocks
-    if (tagName === 'pre') {
-      const codeEl = el.querySelector('code');
+    if (tagName === "pre") {
+      const codeEl = el.querySelector("code");
       const language = codeEl ? detectLanguage(codeEl) : detectLanguage(el);
-      
+
       // Clone and clean the element
       const clone = el.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll('button, [class*="copy"], [class*="toolbar"], [class*="header"]').forEach(btn => btn.remove());
-      
-      const codeContent = cleanCodeContent(clone.textContent || '');
-      
+      clone
+        .querySelectorAll('button, [class*="copy"], [class*="toolbar"], [class*="header"]')
+        .forEach((btn) => btn.remove());
+
+      const codeContent = cleanCodeContent(clone.textContent || "");
+
       if (codeContent.trim()) {
         contents.push({
-          type: 'code',
+          type: "code",
           language,
-          content: codeContent
+          content: codeContent,
         });
       }
       return;
     }
-    
+
     // Handle images
-    if (tagName === 'img') {
+    if (tagName === "img") {
       const img = el as HTMLImageElement;
       const src = img.src;
-      
+
       // Skip tiny images (likely icons)
       if (img.width < 20 || img.height < 20) return;
-      
+
       contents.push({
-        type: 'image',
+        type: "image",
         src,
-        alt: img.alt || ''
+        alt: img.alt || "",
       });
       return;
     }
-    
+
     // Handle links
-    if (tagName === 'a') {
-      const href = el.getAttribute('href');
-      const text = el.textContent?.trim() || '';
-      if (href && text && !href.startsWith('javascript:')) {
+    if (tagName === "a") {
+      const href = el.getAttribute("href");
+      const text = el.textContent?.trim() || "";
+      if (href && text && !href.startsWith("javascript:")) {
         contents.push({
-          type: 'link',
+          type: "link",
           text,
-          url: href
+          url: href,
         });
         return;
       }
     }
-    
+
     // Handle lists
-    if (tagName === 'ul' || tagName === 'ol') {
+    if (tagName === "ul" || tagName === "ol") {
       const items: string[] = [];
-      el.querySelectorAll(':scope > li').forEach(li => {
+      el.querySelectorAll(":scope > li").forEach((li) => {
         const text = li.textContent?.trim();
         if (text) items.push(text);
       });
-      
+
       if (items.length > 0) {
         contents.push({
-          type: 'list',
-          ordered: tagName === 'ol',
-          items
+          type: "list",
+          ordered: tagName === "ol",
+          items,
         });
       }
       return;
     }
-    
+
     // Handle paragraphs and text containers
-    if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span'].includes(tagName)) {
+    if (["p", "h1", "h2", "h3", "h4", "h5", "h6", "span"].includes(tagName)) {
       // Check if this contains only text (no significant children)
-      const hasComplexContent = el.querySelector('pre, img, ul, ol, table');
-      
+      const hasComplexContent = el.querySelector("pre, img, ul, ol, table");
+
       if (!hasComplexContent) {
         const text = el.textContent?.trim();
         if (text) {
           // Add heading indicator if it's a heading
-          const prefix = tagName.startsWith('h') ? `${'#'.repeat(parseInt(tagName[1]))} ` : '';
+          const prefix = tagName.startsWith("h") ? `${"#".repeat(parseInt(tagName[1]))} ` : "";
           contents.push({
-            type: 'text',
-            content: prefix + text
+            type: "text",
+            content: prefix + text,
           });
         }
         return;
       }
     }
-    
+
     // Recursively process children for containers
-    if (['div', 'article', 'section', 'main', 'blockquote'].includes(tagName)) {
-      el.childNodes.forEach(child => {
+    if (["div", "article", "section", "main", "blockquote"].includes(tagName)) {
+      el.childNodes.forEach((child) => {
         if (child.nodeType === Node.ELEMENT_NODE) {
           processElement(child as Element);
         } else if (child.nodeType === Node.TEXT_NODE) {
           const text = child.textContent?.trim();
           if (text && text.length > 1) {
             contents.push({
-              type: 'text',
-              content: text
+              type: "text",
+              content: text,
             });
           }
         }
       });
     }
   };
-  
+
   // Process the element
   processElement(element);
-  
+
   // If we didn't find any structured content, fall back to plain text
   if (contents.length === 0) {
     const text = element.textContent?.trim();
     if (text) {
       contents.push({
-        type: 'text',
-        content: text
+        type: "text",
+        content: text,
       });
     }
   }
-  
+
   // Merge consecutive text blocks
   const merged: MessageContent[] = [];
   for (const content of contents) {
-    if (content.type === 'text' && merged.length > 0 && merged[merged.length - 1].type === 'text') {
-      (merged[merged.length - 1] as TextContent).content += '\n' + content.content;
+    if (content.type === "text" && merged.length > 0 && merged[merged.length - 1].type === "text") {
+      (merged[merged.length - 1] as TextContent).content += "\n" + content.content;
     } else {
       merged.push(content);
     }
   }
-  
+
   // Clean up text content
-  return merged.map(item => {
-    if (item.type === 'text') {
-      return {
-        ...item,
-        content: item.content
-          .replace(/\n{3,}/g, '\n\n')
-          .trim()
-      };
-    }
-    return item;
-  }).filter(item => {
-    if (item.type === 'text') return item.content.length > 0;
-    if (item.type === 'code') return item.content.length > 0;
-    return true;
-  });
+  return merged
+    .map((item) => {
+      if (item.type === "text") {
+        return {
+          ...item,
+          content: item.content.replace(/\n{3,}/g, "\n\n").trim(),
+        };
+      }
+      return item;
+    })
+    .filter((item) => {
+      if (item.type === "text") return item.content.length > 0;
+      if (item.type === "code") return item.content.length > 0;
+      return true;
+    });
 };
 
 /**
@@ -235,51 +238,51 @@ const parseMessageContent = (element: Element): MessageContent[] => {
  */
 const findMessageContainers = (element: Element): { role: MessageRole; element: Element }[] => {
   const messages: { role: MessageRole; element: Element }[] = [];
-  
+
   // Common selectors for message containers
   const messageSelectors = [
-    '[data-message-author-role]',
+    "[data-message-author-role]",
     '[class*="conversation-turn"]',
     '[class*="ConversationItem"]',
     '[class*="message-"]',
     '[class*="chat-message"]',
     '[class*="Message_"]',
     '[role="article"]',
-    'article[data-scroll-anchor]',
+    "article[data-scroll-anchor]",
     '[class*="group/conversation-turn"]',
-    '.message',
-    '.chat-turn',
+    ".message",
+    ".chat-turn",
   ];
-  
+
   // Try to find message containers
   for (const selector of messageSelectors) {
     try {
       const containers = element.querySelectorAll(selector);
       if (containers.length > 0) {
-        containers.forEach(container => {
+        containers.forEach((container) => {
           if (isUserMessage(container)) {
-            messages.push({ role: 'user', element: container });
+            messages.push({ role: "user", element: container });
           } else if (isAssistantMessage(container)) {
-            messages.push({ role: 'assistant', element: container });
+            messages.push({ role: "assistant", element: container });
           }
         });
-        
+
         if (messages.length > 0) break;
       }
-    } catch (e) {
+    } catch (_) {
       // Invalid selector, continue
     }
   }
-  
+
   // If no containers found, check the element itself
   if (messages.length === 0) {
     if (isUserMessage(element)) {
-      messages.push({ role: 'user', element });
+      messages.push({ role: "user", element });
     } else if (isAssistantMessage(element)) {
-      messages.push({ role: 'assistant', element });
+      messages.push({ role: "assistant", element });
     }
   }
-  
+
   return messages;
 };
 
@@ -288,12 +291,12 @@ const findMessageContainers = (element: Element): { role: MessageRole; element: 
  */
 const parseHtmlToMessages = (html: string): MessageData[] => {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
+  const doc = parser.parseFromString(html, "text/html");
   const messages: MessageData[] = [];
-  
+
   // Find all message containers
   const containers = findMessageContainers(doc.body);
-  
+
   if (containers.length > 0) {
     containers.forEach(({ role, element }) => {
       const content = parseMessageContent(element);
@@ -309,7 +312,7 @@ const parseHtmlToMessages = (html: string): MessageData[] => {
       messages.push({ role, content });
     }
   }
-  
+
   return messages;
 };
 
@@ -320,68 +323,68 @@ const groupIntoExchanges = (messages: MessageData[]): Exchange[] => {
   const exchanges: Exchange[] = [];
   let currentPrompt: MessageData | null = null;
   let exchangeIndex = 0;
-  
+
   for (const message of messages) {
-    if (message.role === 'user') {
+    if (message.role === "user") {
       // If we have a pending prompt without response, add it with empty response
       if (currentPrompt) {
         exchanges.push({
           prompt: {
             content: currentPrompt.content,
-            timestamp: currentPrompt.timestamp
+            timestamp: currentPrompt.timestamp,
           },
           response: {
-            content: []
+            content: [],
           },
-          metadata: { index: exchangeIndex++ }
+          metadata: { index: exchangeIndex++ },
         });
       }
       currentPrompt = message;
-    } else if (message.role === 'assistant') {
+    } else if (message.role === "assistant") {
       if (currentPrompt) {
         // Complete the exchange
         exchanges.push({
           prompt: {
             content: currentPrompt.content,
-            timestamp: currentPrompt.timestamp
+            timestamp: currentPrompt.timestamp,
           },
           response: {
             content: message.content,
-            timestamp: message.timestamp
+            timestamp: message.timestamp,
           },
-          metadata: { index: exchangeIndex++ }
+          metadata: { index: exchangeIndex++ },
         });
         currentPrompt = null;
       } else {
         // Assistant message without prompt - add with empty prompt
         exchanges.push({
           prompt: {
-            content: []
+            content: [],
           },
           response: {
             content: message.content,
-            timestamp: message.timestamp
+            timestamp: message.timestamp,
           },
-          metadata: { index: exchangeIndex++ }
+          metadata: { index: exchangeIndex++ },
         });
       }
     }
   }
-  
+
   // Handle trailing prompt without response
   if (currentPrompt) {
     exchanges.push({
       prompt: {
         content: currentPrompt.content,
-        timestamp: currentPrompt.timestamp
+        timestamp: currentPrompt.timestamp,
       },
       response: {
-        content: []
+        content: [],
       },
-      metadata: { index: exchangeIndex++ }
+      metadata: { index: exchangeIndex++ },
     });
   }
-  
+
   return exchanges;
 };
 
@@ -391,26 +394,26 @@ const groupIntoExchanges = (messages: MessageData[]): Exchange[] => {
 export const generateExportJSON = (elements: SelectedElement[]): string => {
   // Parse all selected elements into messages
   const allMessages: MessageData[] = [];
-  
-  elements.forEach(el => {
+
+  elements.forEach((el) => {
     const messages = parseHtmlToMessages(el.content);
     allMessages.push(...messages);
   });
-  
+
   // Group into exchanges
   const exchanges = groupIntoExchanges(allMessages);
-  
+
   // Build the export structure
   const exportData: ChatExport = {
     exportedAt: new Date().toISOString(),
-    source: typeof window !== 'undefined' ? window.location.href : '',
+    source: typeof window !== "undefined" ? window.location.href : "",
     exchanges,
     metadata: {
       totalExchanges: exchanges.length,
-      exportVersion: '1.0.0'
-    }
+      exportVersion: "1.0.0",
+    },
   };
-  
+
   return JSON.stringify(exportData, null, 2);
 };
 
@@ -420,15 +423,15 @@ export const generateExportJSON = (elements: SelectedElement[]): string => {
 export const generateSimpleExportJSON = (elements: SelectedElement[]): string => {
   // Parse all selected elements into messages
   const allMessages: MessageData[] = [];
-  
-  elements.forEach(el => {
+
+  elements.forEach((el) => {
     const messages = parseHtmlToMessages(el.content);
     allMessages.push(...messages);
   });
-  
+
   // Group into exchanges
   const exchanges = groupIntoExchanges(allMessages);
-  
+
   // Return just the array
   return JSON.stringify(exchanges, null, 2);
 };

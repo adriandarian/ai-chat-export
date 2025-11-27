@@ -1,8 +1,10 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "rules": {
-    "no-unused-vars": "warn",
-    "no-console": "warn",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
+    "no-console": "off",
+    "no-useless-escape": "off",
+    "unicorn/no-new-array": "off",
     "eqeqeq": "error",
     "no-var": "error",
     "prefer-const": "warn"

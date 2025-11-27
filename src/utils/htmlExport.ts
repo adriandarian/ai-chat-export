@@ -2,9 +2,9 @@
  * HTML export generation
  */
 
-import { SelectedElement } from '../types';
-import { getPageStyles, getDocumentBackgroundColor } from './styles';
-import { enhanceElementWithStyles } from './elementProcessing';
+import { SelectedElement } from "../types";
+import { getPageStyles, getDocumentBackgroundColor } from "./styles";
+import { enhanceElementWithStyles } from "./elementProcessing";
 
 /**
  * Generate the inline script for client-side code block processing
@@ -427,16 +427,18 @@ const getExportStyles = (bgColor: string): string => `
 export const generateExportHTML = (elements: SelectedElement[]): string => {
   const styles = getPageStyles();
   const bgColor = getDocumentBackgroundColor();
-  
+
   // Enhance elements with computed styles
-  const enhancedContent = elements.map(el => {
-    try {
-      return enhanceElementWithStyles(el);
-    } catch (err) {
-      console.warn('Error enhancing element:', err);
-      return el.content;
-    }
-  }).join('\n');
+  const enhancedContent = elements
+    .map((el) => {
+      try {
+        return enhanceElementWithStyles(el);
+      } catch (err) {
+        console.warn("Error enhancing element:", err);
+        return el.content;
+      }
+    })
+    .join("\n");
 
   return `<!DOCTYPE html>
 <html>
@@ -462,4 +464,3 @@ export const generateExportHTML = (elements: SelectedElement[]): string => {
 </body>
 </html>`;
 };
-

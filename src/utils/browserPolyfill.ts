@@ -1,39 +1,39 @@
 /**
  * Browser API Compatibility Layer
- * 
+ *
  * This module provides a unified API across different browsers (Chrome, Firefox, Safari, etc.)
  * It normalizes the differences between chrome.* and browser.* APIs.
  */
 
 // Detect the current browser environment
-export type BrowserType = 'chrome' | 'firefox' | 'safari' | 'edge' | 'opera' | 'brave' | 'unknown';
+export type BrowserType = "chrome" | "firefox" | "safari" | "edge" | "opera" | "brave" | "unknown";
 
 export function detectBrowser(): BrowserType {
   const ua = navigator.userAgent.toLowerCase();
-  
+
   // Check for Brave first (it also has Chrome in UA)
   if ((navigator as any).brave?.isBrave) {
-    return 'brave';
+    return "brave";
   }
-  
+
   // Check user agent strings
-  if (ua.includes('edg/')) {
-    return 'edge';
+  if (ua.includes("edg/")) {
+    return "edge";
   }
-  if (ua.includes('opr/') || ua.includes('opera')) {
-    return 'opera';
+  if (ua.includes("opr/") || ua.includes("opera")) {
+    return "opera";
   }
-  if (ua.includes('firefox')) {
-    return 'firefox';
+  if (ua.includes("firefox")) {
+    return "firefox";
   }
-  if (ua.includes('safari') && !ua.includes('chrome')) {
-    return 'safari';
+  if (ua.includes("safari") && !ua.includes("chrome")) {
+    return "safari";
   }
-  if (ua.includes('chrome')) {
-    return 'chrome';
+  if (ua.includes("chrome")) {
+    return "chrome";
   }
-  
-  return 'unknown';
+
+  return "unknown";
 }
 
 // Get the appropriate browser API namespace
@@ -41,17 +41,17 @@ function getBrowserAPI(): typeof chrome {
   // Firefox and Safari use the `browser` namespace with Promise-based APIs
   // Chrome and Chromium browsers use `chrome` namespace with callback-based APIs
   // Modern browsers often support both
-  
-  if (typeof browser !== 'undefined') {
+
+  if (typeof browser !== "undefined") {
     // Firefox/Safari with native Promise support
     return browser as unknown as typeof chrome;
   }
-  
-  if (typeof chrome !== 'undefined') {
+
+  if (typeof chrome !== "undefined") {
     return chrome;
   }
-  
-  throw new Error('No browser extension API found');
+
+  throw new Error("No browser extension API found");
 }
 
 // Export the unified browser API
@@ -64,7 +64,9 @@ export const browserAsync = {
    */
   storage: {
     local: {
-      get: (keys?: string | string[] | Record<string, any> | null): Promise<Record<string, any>> => {
+      get: (
+        keys?: string | string[] | Record<string, any> | null,
+      ): Promise<Record<string, any>> => {
         return new Promise((resolve, reject) => {
           browserAPI.storage.local.get(keys ?? null, (result) => {
             if (browserAPI.runtime.lastError) {
@@ -99,7 +101,9 @@ export const browserAsync = {
       },
     },
     sync: {
-      get: (keys?: string | string[] | Record<string, any> | null): Promise<Record<string, any>> => {
+      get: (
+        keys?: string | string[] | Record<string, any> | null,
+      ): Promise<Record<string, any>> => {
         return new Promise((resolve, reject) => {
           browserAPI.storage.sync.get(keys ?? null, (result) => {
             if (browserAPI.runtime.lastError) {
@@ -194,7 +198,7 @@ export const browserAsync = {
 export function isExtensionContextValid(): boolean {
   try {
     return browserAPI?.runtime?.id !== undefined;
-  } catch (e) {
+  } catch (_) {
     return false;
   }
 }
@@ -203,7 +207,7 @@ export function isExtensionContextValid(): boolean {
 export function getBrowserInfo() {
   const browser = detectBrowser();
   const manifest = browserAPI.runtime.getManifest();
-  
+
   return {
     browser,
     extensionName: manifest.name,

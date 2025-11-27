@@ -1,6 +1,6 @@
 /**
  * PDF generation via browser's native print functionality
- * 
+ *
  * This approach is much more reliable than html2canvas because:
  * - Browser handles fonts, pagination, and complex CSS correctly
  * - Better text selection and accessibility in resulting PDF
@@ -8,9 +8,9 @@
  * - No canvas size limits or rendering artifacts
  */
 
-import { SelectedElement } from '../types';
-import { getPageStyles, getDocumentBackgroundColor } from './styles';
-import { enhanceElementWithStyles } from './elementProcessing';
+import { SelectedElement } from "../types";
+import { getPageStyles, getDocumentBackgroundColor } from "./styles";
+import { enhanceElementWithStyles } from "./elementProcessing";
 
 /**
  * Print-optimized CSS styles with CSS variables for theming
@@ -864,17 +864,19 @@ console.log("Script parsed successfully!");
 const generatePrintableHTML = (elements: SelectedElement[]): string => {
   const pageStyles = getPageStyles();
   const bgColor = getDocumentBackgroundColor();
-  
+
   // Enhance elements with computed styles
-  const enhancedContent = elements.map((el, index) => {
-    try {
-      const content = enhanceElementWithStyles(el);
-      return `<div class="pdf-export-item" data-index="${index}">${content}</div>`;
-    } catch (err) {
-      console.warn('Error enhancing element:', err);
-      return `<div class="pdf-export-item" data-index="${index}">${el.content}</div>`;
-    }
-  }).join('\n');
+  const enhancedContent = elements
+    .map((el, index) => {
+      try {
+        const content = enhanceElementWithStyles(el);
+        return `<div class="pdf-export-item" data-index="${index}">${content}</div>`;
+      } catch (err) {
+        console.warn("Error enhancing element:", err);
+        return `<div class="pdf-export-item" data-index="${index}">${el.content}</div>`;
+      }
+    })
+    .join("\n");
 
   return `<!DOCTYPE html>
 <html>
@@ -900,52 +902,53 @@ const generatePrintableHTML = (elements: SelectedElement[]): string => {
  */
 export const downloadPDF = async (elements: SelectedElement[], filename: string): Promise<void> => {
   if (!elements || elements.length === 0) {
-    throw new Error('No elements selected');
+    throw new Error("No elements selected");
   }
 
-  console.log('PDF: Generating printable view with', elements.length, 'elements');
+  console.log("PDF: Generating printable view with", elements.length, "elements");
 
   try {
     const html = generatePrintableHTML(elements);
-    
+
     // Create a blob URL for the HTML
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
-    
+
     // Open in a new window/tab
-    const printWindow = window.open(url, '_blank', 'width=900,height=700');
-    
+    const printWindow = window.open(url, "_blank", "width=900,height=700");
+
     if (!printWindow) {
       // Popup blocked - fallback to download
-      console.warn('PDF: Popup blocked, falling back to HTML download');
-      const a = document.createElement('a');
+      console.warn("PDF: Popup blocked, falling back to HTML download");
+      const a = document.createElement("a");
       a.href = url;
-      a.download = filename.replace('.pdf', '.html');
+      a.download = filename.replace(".pdf", ".html");
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
-      alert('Popup was blocked. HTML file downloaded instead.\n\nOpen the file and use Print > Save as PDF.');
-      
+
+      alert(
+        "Popup was blocked. HTML file downloaded instead.\n\nOpen the file and use Print > Save as PDF.",
+      );
+
       // Clean up after download
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       return;
     }
-    
+
     // Clean up the blob URL when the window closes
     printWindow.onbeforeunload = () => {
       URL.revokeObjectURL(url);
     };
-    
+
     // Also clean up after a timeout in case onbeforeunload doesn't fire
     setTimeout(() => {
       URL.revokeObjectURL(url);
     }, 60000);
-    
-    console.log('PDF: Opened print preview window');
-    
+
+    console.log("PDF: Opened print preview window");
   } catch (error) {
-    console.error('PDF export failed:', error);
+    console.error("PDF export failed:", error);
     throw error;
   }
 };
@@ -957,5 +960,5 @@ export const downloadPDF = async (elements: SelectedElement[], filename: string)
 export const generateExportPDF = async (elements: SelectedElement[]): Promise<Blob> => {
   // Generate HTML and return as blob
   const html = generatePrintableHTML(elements);
-  return new Blob([html], { type: 'text/html' });
+  return new Blob([html], { type: "text/html" });
 };

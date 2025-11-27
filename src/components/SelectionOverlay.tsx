@@ -25,4 +25,3 @@ export const SelectionOverlay = ({ isVisible, rect }: SelectionOverlayProps) => 
     />
   );
 };
-

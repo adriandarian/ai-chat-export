@@ -12,10 +12,10 @@ export const getPageStyles = (): string => {
     styles.push(link.outerHTML);
   });
   // Get inline styles
-  document.querySelectorAll('style').forEach((style) => {
+  document.querySelectorAll("style").forEach((style) => {
     styles.push(style.outerHTML);
   });
-  return styles.join('\n');
+  return styles.join("\n");
 };
 
 /**
@@ -29,21 +29,21 @@ export const extractCSSVariables = (): string[] => {
       try {
         const rules = Array.from(sheet.cssRules || []);
         for (const rule of rules) {
-          if (rule instanceof CSSStyleRule && rule.selectorText === ':root') {
+          if (rule instanceof CSSStyleRule && rule.selectorText === ":root") {
             for (let i = 0; i < rule.style.length; i++) {
               const prop = rule.style[i];
-              if (prop.startsWith('--')) {
+              if (prop.startsWith("--")) {
                 cssVariables.push(`  ${prop}: ${rule.style.getPropertyValue(prop)};`);
               }
             }
           }
         }
-      } catch (e) {
+      } catch (_) {
         // Skip cross-origin stylesheets
       }
     }
-  } catch (e) {
-    console.warn('Could not extract CSS variables:', e);
+  } catch (err) {
+    console.warn("Could not extract CSS variables:", err);
   }
   return cssVariables;
 };
@@ -54,11 +54,12 @@ export const extractCSSVariables = (): string[] => {
 export const getDocumentBackgroundColor = (): string => {
   const bodyBgColor = window.getComputedStyle(document.body).backgroundColor;
   const htmlBgColor = window.getComputedStyle(document.documentElement).backgroundColor;
-  const bgColor = (bodyBgColor && bodyBgColor !== 'rgba(0, 0, 0, 0)') 
-    ? bodyBgColor 
-    : (htmlBgColor && htmlBgColor !== 'rgba(0, 0, 0, 0)') 
-      ? htmlBgColor 
-      : '#ffffff';
+  const bgColor =
+    bodyBgColor && bodyBgColor !== "rgba(0, 0, 0, 0)"
+      ? bodyBgColor
+      : htmlBgColor && htmlBgColor !== "rgba(0, 0, 0, 0)"
+        ? htmlBgColor
+        : "#ffffff";
   return bgColor;
 };
 
@@ -72,7 +73,7 @@ export const parseColor = (color: string): [number, number, number] => {
     return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
   }
   // Handle hex format
-  if (color.startsWith('#')) {
+  if (color.startsWith("#")) {
     const hex = color.slice(1);
     const r = parseInt(hex.slice(0, 2), 16);
     const g = parseInt(hex.slice(2, 4), 16);
@@ -82,4 +83,3 @@ export const parseColor = (color: string): [number, number, number] => {
   // Default to white
   return [255, 255, 255];
 };
-

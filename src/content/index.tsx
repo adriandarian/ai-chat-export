@@ -1,13 +1,13 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import styles from '../style.css?inline'
-import { ContentApp } from './ContentApp'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import styles from "../style.css?inline";
+import { ContentApp } from "./ContentApp";
 
 // Suppress HMR errors when extension context is invalidated
 const isContextValid = () => {
   try {
     return chrome?.runtime?.id !== undefined;
-  } catch (e) {
+  } catch (_) {
     return false;
   }
 };
@@ -17,16 +17,16 @@ const originalErrorHandler = window.onerror;
 window.onerror = (message, source, lineno, colno, error) => {
   // Suppress "Extension context invalidated" errors from HMR client
   if (
-    typeof message === 'string' && 
-    (message.includes('Extension context invalidated') || 
-     message.includes('HMRPort is not initialized'))
+    typeof message === "string" &&
+    (message.includes("Extension context invalidated") ||
+      message.includes("HMRPort is not initialized"))
   ) {
     // Silently ignore HMR errors when context is invalidated
     if (!isContextValid()) {
       return true; // Prevent default error handling
     }
   }
-  
+
   // Call original error handler for other errors
   if (originalErrorHandler) {
     return originalErrorHandler.call(window, message, source, lineno, colno, error);
@@ -35,15 +35,15 @@ window.onerror = (message, source, lineno, colno, error) => {
 };
 
 // Also catch unhandled promise rejections
-window.addEventListener('unhandledrejection', (event) => {
+window.addEventListener("unhandledrejection", (event) => {
   const reason = event.reason;
-  const message = reason?.message || reason?.toString() || '';
-  
+  const message = reason?.message || reason?.toString() || "";
+
   // Suppress HMR-related promise rejections
   if (
-    message.includes('Extension context invalidated') ||
-    message.includes('HMRPort is not initialized') ||
-    message.includes('context invalidated')
+    message.includes("Extension context invalidated") ||
+    message.includes("HMRPort is not initialized") ||
+    message.includes("context invalidated")
   ) {
     if (!isContextValid()) {
       event.preventDefault(); // Prevent default error handling
@@ -52,7 +52,7 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
-const rootId = 'ai-chat-export-root';
+const rootId = "ai-chat-export-root";
 let reactRoot: ReactDOM.Root | null = null;
 
 // Ensure DOM is ready before initializing
@@ -63,15 +63,15 @@ const initContentScript = () => {
       // Extension context invalidated, skip initialization
       return;
     }
-  } catch (e) {
+  } catch (_) {
     // Extension context invalidated, skip initialization
     return;
   }
 
   // Wait for body if not ready
   if (!document.body) {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initContentScript);
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initContentScript);
       return;
     }
     // If still no body, wait a bit more
@@ -82,21 +82,21 @@ const initContentScript = () => {
   let host = document.getElementById(rootId);
 
   if (!host) {
-    host = document.createElement('div');
+    host = document.createElement("div");
     host.id = rootId;
-    host.style.position = 'absolute';
-    host.style.top = '0';
-    host.style.left = '0';
-    host.style.zIndex = '2147483647';
-    host.style.pointerEvents = 'none'; // Host lets events pass through
+    host.style.position = "absolute";
+    host.style.top = "0";
+    host.style.left = "0";
+    host.style.zIndex = "2147483647";
+    host.style.pointerEvents = "none"; // Host lets events pass through
     document.body.appendChild(host);
   }
 
   // Create Shadow DOM
-  const shadowRoot = host.shadowRoot || host.attachShadow({ mode: 'open' });
+  const shadowRoot = host.shadowRoot || host.attachShadow({ mode: "open" });
 
   // Check if React root already exists
-  const existingAppRoot = shadowRoot.querySelector('#app-root');
+  const existingAppRoot = shadowRoot.querySelector("#app-root");
   if (existingAppRoot) {
     if (reactRoot) {
       // We have a valid react root, don't re-initialize
@@ -108,19 +108,19 @@ const initContentScript = () => {
   }
 
   // Clean up old style if it exists (in case of extension reload)
-  const oldStyle = shadowRoot.querySelector('style');
+  const oldStyle = shadowRoot.querySelector("style");
   if (oldStyle) {
     oldStyle.remove();
   }
 
   // Add styles
-  const styleElement = document.createElement('style');
+  const styleElement = document.createElement("style");
   styleElement.textContent = styles;
   shadowRoot.appendChild(styleElement);
 
   // Create a root for React
-  const appRoot = document.createElement('div');
-  appRoot.id = 'app-root';
+  const appRoot = document.createElement("div");
+  appRoot.id = "app-root";
   // appRoot inherits pointer-events: none from host, which is what we want.
   // Interactive children will override this.
   shadowRoot.appendChild(appRoot);
@@ -130,7 +130,7 @@ const initContentScript = () => {
   reactRoot.render(
     <React.StrictMode>
       <ContentApp />
-    </React.StrictMode>
+    </React.StrictMode>,
   );
 };
 
@@ -139,25 +139,25 @@ try {
   chrome.runtime.onConnect.addListener((port) => {
     port.onDisconnect.addListener(() => {
       // Extension context was invalidated
-      console.warn('Extension context invalidated, cleaning up...');
+      console.warn("Extension context invalidated, cleaning up...");
       // Clean up React root if it exists
       if (reactRoot) {
         try {
           reactRoot.unmount();
           reactRoot = null;
-        } catch (e) {
+        } catch (_) {
           // Ignore errors during cleanup
         }
       }
     });
   });
-} catch (e) {
+} catch (_) {
   // Context already invalidated, ignore
 }
 
 // Initialize immediately if DOM is ready, otherwise wait
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initContentScript);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initContentScript);
 } else {
   initContentScript();
 }

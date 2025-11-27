@@ -6,19 +6,19 @@
 // Export Formats
 // =============================================================================
 
-export type ExportFormat = 'html' | 'pdf' | 'json' | 'markdown';
+export type ExportFormat = "html" | "pdf" | "json" | "markdown";
 
 // =============================================================================
 // Theme
 // =============================================================================
 
-export type Theme = 'light' | 'dark' | 'midnight';
+export type Theme = "light" | "dark" | "midnight";
 
 // =============================================================================
 // Selection
 // =============================================================================
 
-export type SelectionMode = 'element' | 'conversation';
+export type SelectionMode = "element" | "conversation";
 
 export interface SelectedElement {
   id: string;
@@ -34,38 +34,43 @@ export interface SelectedElement {
 // Message Types (for JSON export and content parsing)
 // =============================================================================
 
-export type MessageRole = 'user' | 'assistant';
+export type MessageRole = "user" | "assistant";
 
 export interface TextContent {
-  type: 'text';
+  type: "text";
   content: string;
 }
 
 export interface CodeBlockContent {
-  type: 'code';
+  type: "code";
   language: string;
   content: string;
 }
 
 export interface ListContent {
-  type: 'list';
+  type: "list";
   ordered: boolean;
   items: string[];
 }
 
 export interface ImageContent {
-  type: 'image';
+  type: "image";
   src: string;
   alt: string;
 }
 
 export interface LinkContent {
-  type: 'link';
+  type: "link";
   text: string;
   url: string;
 }
 
-export type MessageContent = TextContent | CodeBlockContent | ListContent | ImageContent | LinkContent;
+export type MessageContent =
+  | TextContent
+  | CodeBlockContent
+  | ListContent
+  | ImageContent
+  | LinkContent;
 
 export interface MessageData {
   role: MessageRole;
@@ -102,6 +107,6 @@ export interface ChatExport {
 // =============================================================================
 
 export type Message =
-  | { type: 'TOGGLE_SELECTION_MODE'; payload?: boolean }
-  | { type: 'CLEAR_SELECTION' }
-  | { type: 'GET_SELECTION_STATUS' };
+  | { type: "TOGGLE_SELECTION_MODE"; payload?: boolean }
+  | { type: "CLEAR_SELECTION" }
+  | { type: "GET_SELECTION_STATUS" };

@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { Theme } from '../types';
+import { createContext, useContext, useEffect, useState } from "react";
+import { Theme } from "../types";
 
 interface ThemeContextType {
   theme: Theme;
@@ -9,7 +9,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('light');
+  const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
     // Load saved theme (default to light)
@@ -18,15 +18,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         // Extension context invalidated, use default light theme
         return;
       }
-      chrome.storage.local.get(['theme'], (result) => {
+      chrome.storage.local.get(["theme"], (result) => {
         if (result.theme) {
           setThemeState(result.theme as Theme);
         }
         // Default to light theme if no preference saved
       });
-    } catch (e) {
+    } catch (err) {
       // Extension context invalidated or storage unavailable, use default light theme
-      console.warn('Could not access storage:', e);
+      console.warn("Could not access storage:", err);
     }
   }, []);
 
@@ -38,28 +38,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       chrome.storage.local.set({ theme: newTheme });
-    } catch (e) {
+    } catch (err) {
       // Extension context invalidated or storage unavailable, skip saving
-      console.warn('Could not save theme:', e);
+      console.warn("Could not save theme:", err);
     }
   };
 
   useEffect(() => {
     // Apply theme class to html or body
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    throw new Error("useTheme must be used within a ThemeProvider");
   }
   return context;
 }
