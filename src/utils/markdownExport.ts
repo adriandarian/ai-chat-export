@@ -7,9 +7,12 @@ import { SelectedElement } from '../types';
 /**
  * Convert HTML node to Markdown string
  */
-const processNode = (node: Node): string => {
+const processNode = (node: Node, preserveWhitespace = false): string => {
   if (node.nodeType === Node.TEXT_NODE) {
     const text = node.textContent || '';
+    if (preserveWhitespace) {
+      return text;
+    }
     // Normalize whitespace: collapse multiple spaces/newlines to single space
     // but preserve leading/trailing single spaces for inline context
     const normalized = text.replace(/\s+/g, ' ');
@@ -23,9 +26,17 @@ const processNode = (node: Node): string => {
   const el = node as HTMLElement;
   const tag = el.tagName.toLowerCase();
   
+  // Skip UI elements commonly found in code block wrappers
+  if (tag === 'button' || 
+      el.getAttribute('role') === 'button' ||
+      el.className?.includes('copy') ||
+      el.className?.includes('toolbar')) {
+    return '';
+  }
+  
   // Process children, preserving spaces between them
   const childNodes = Array.from(el.childNodes);
-  const children = childNodes.map(n => processNode(n)).join('');
+  const children = childNodes.map(n => processNode(n, preserveWhitespace)).join('');
   
   // Trim children for block elements, keep for inline
   const trimmedChildren = children.trim();
@@ -46,14 +57,22 @@ const processNode = (node: Node): string => {
     case 'i': return trimmedChildren ? `*${trimmedChildren}*` : '';
     case 'code': 
       if (el.parentElement?.tagName.toLowerCase() === 'pre') {
-        return children;
+        // Inside pre: return raw text content to preserve formatting
+        return el.textContent || '';
       }
       return trimmedChildren ? `\`${trimmedChildren}\`` : '';
     case 'pre': {
       // Try to detect language from class or data attribute
+      const codeEl = el.querySelector('code');
       const langClass = el.className?.match(/language-(\w+)/)?.[1] || 
-                        el.querySelector('code')?.className?.match(/language-(\w+)/)?.[1] || '';
-      return `\n\`\`\`${langClass}\n${trimmedChildren}\n\`\`\`\n`;
+                        codeEl?.className?.match(/language-(\w+)/)?.[1] || '';
+      
+      // Get code content directly from the code element if present, otherwise from pre
+      // This avoids picking up UI elements like "Copy code" buttons
+      const codeContent = codeEl ? (codeEl.textContent || '') : (el.textContent || '');
+      const cleanedCode = codeContent.trim();
+      
+      return cleanedCode ? `\n\`\`\`${langClass}\n${cleanedCode}\n\`\`\`\n` : '';
     }
     case 'blockquote': return `\n> ${trimmedChildren.split('\n').join('\n> ')}\n`;
     case 'ul':
@@ -88,15 +107,15 @@ const processNode = (node: Node): string => {
     case 'article':
     case 'section':
     case 'main': {
-      // Check for common role indicators
-      const role = el.getAttribute('data-message-author-role') || 
-                   el.getAttribute('role') ||
-                   el.className?.toLowerCase() || '';
-      // Only add role markers if there's actual content
-      if (role.includes('user') || role.includes('human')) {
+      // Only check specific data attributes for role detection (not className)
+      // className matching is too broad and can match wrapper elements
+      const dataRole = el.getAttribute('data-message-author-role')?.toLowerCase() || '';
+      
+      // Only add role markers if there's actual content and it's a direct role attribute
+      if (dataRole === 'user' || dataRole === 'human') {
         return trimmedChildren ? `\n---\n\n**User:**\n\n${trimmedChildren}\n` : '';
       }
-      if (role.includes('assistant') || role.includes('ai') || role.includes('bot')) {
+      if (dataRole === 'assistant' || dataRole === 'ai' || dataRole === 'bot') {
         return trimmedChildren ? `\n**Assistant:**\n\n${trimmedChildren}\n` : '';
       }
       return children;
@@ -117,16 +136,6 @@ export const htmlToMarkdown = (html: string): string => {
   
   // Clean up excessive newlines
   markdown = markdown.replace(/\n{3,}/g, '\n\n');
-  
-  // Fix spacing around inline formatting markers
-  // Pattern: nonspace + asterisks + word (closing marker followed by word) → add space after
-  markdown = markdown.replace(/(\S)(\*{1,3})(\w)/g, '$1$2 $3');
-  // Pattern: word + asterisks + nonspace (word followed by opening marker) → add space before
-  markdown = markdown.replace(/(\w)(\*{1,3})(\S)/g, '$1 $2$3');
-  
-  // Same for backticks (inline code)
-  markdown = markdown.replace(/(\S)(`)(\w)/g, '$1$2 $3');
-  markdown = markdown.replace(/(\w)(`)(\S)/g, '$1 $2$3');
   
   markdown = markdown.trim();
   
