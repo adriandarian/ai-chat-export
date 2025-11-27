@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { crx } from '@crxjs/vite-plugin'
+import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'path'
 
 // Import browser-specific manifests
@@ -11,6 +12,9 @@ import safariManifest from './src/manifests/safari'
 // Get the target browser from environment variable
 // Usage: BROWSER=firefox vite build
 const targetBrowser = process.env.BROWSER || 'chrome'
+
+// Check if bundle analysis is enabled
+const analyzeBundle = process.env.ANALYZE === 'true'
 
 // Select the appropriate manifest based on target browser
 function getManifest() {
@@ -42,7 +46,15 @@ export default defineConfig({
   plugins: [
     react(),
     crx({ manifest: getManifest() }),
-  ],
+    // Bundle analyzer - generates visual reports when ANALYZE=true
+    analyzeBundle && visualizer({
+      filename: `bundle-reports/stats-${targetBrowser}.html`,
+      open: false,
+      gzipSize: true,
+      brotliSize: true,
+      template: 'treemap', // 'treemap', 'sunburst', 'network'
+    }),
+  ].filter(Boolean),
   build: {
     outDir: getOutDir(),
     // Ensure clean builds for each browser

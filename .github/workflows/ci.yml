@@ -49,7 +49,7 @@ jobs:
             echo "Build failed: dist directory not found"
             exit 1
           fi
-          if [ ! -f "dist/manifest.json" ]; then
+          if [ ! -f "dist/chrome/manifest.json" ]; then
             echo "Build failed: manifest.json not found"
             exit 1
           fi
@@ -61,6 +61,54 @@ jobs:
           name: extension-build
           path: dist/
           retention-days: 7
+
+  bundle-size:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+      
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-build
+          path: dist/
+      
+      - name: Analyze bundle size
+        run: bun run bundle:check
+      
+      - name: Generate bundle report
+        if: always()
+        run: bun run bundle:report
+      
+      - name: Upload bundle report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-report
+          path: bundle-reports/
+          retention-days: 30
 
   lint:
     name: Lint and Format Check
@@ -104,16 +152,16 @@ jobs:
       
       - name: Validate manifest.json
         run: |
-          if [ ! -f "dist/manifest.json" ]; then
+          if [ ! -f "dist/chrome/manifest.json" ]; then
             echo "Error: manifest.json not found"
             exit 1
           fi
           
           # Check if manifest.json is valid JSON
-          bun -e "JSON.parse(require('fs').readFileSync('dist/manifest.json', 'utf8'))"
+          bun -e "JSON.parse(require('fs').readFileSync('dist/chrome/manifest.json', 'utf8'))"
           
           # Check required fields
-          MANIFEST_VERSION=$(bun -e "console.log(JSON.parse(require('fs').readFileSync('dist/manifest.json', 'utf8')).manifest_version)")
+          MANIFEST_VERSION=$(bun -e "console.log(JSON.parse(require('fs').readFileSync('dist/chrome/manifest.json', 'utf8')).manifest_version)")
           if [ -z "$MANIFEST_VERSION" ]; then
             echo "Error: manifest_version is missing"
             exit 1

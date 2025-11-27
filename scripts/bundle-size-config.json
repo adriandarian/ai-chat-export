@@ -1,0 +1,21 @@
+{
+  "$schema": "./bundle-size-config.schema.json",
+  "maxTotalSizeKB": 500,
+  "maxChunkSizeKB": 250,
+  "exclude": [
+    ".map",
+    ".html",
+    "manifest.json",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot"
+  ],
+  "browsers": ["chrome", "firefox", "safari"]
+}
