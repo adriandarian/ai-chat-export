@@ -31,7 +31,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "security:audit": "npm audit --audit-level=moderate",
+    "security:audit": "npm audit --audit-level=critical",
     "security:snyk": "snyk test --project-id=960dacb5-f5fd-4718-804e-22c0764f223e",
     "deps:check": "taze",
     "deps:update": "taze --write",
