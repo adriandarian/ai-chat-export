@@ -90,7 +90,7 @@ describe("languageDetection", () => {
 
     it("should handle language labels followed by Copy code", () => {
       expect(cleanCodeContent("javascript Copy code\nconsole.log('hello')")).toBe(
-        "console.log('hello')"
+        "console.log('hello')",
       );
     });
 

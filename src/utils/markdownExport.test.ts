@@ -88,9 +88,7 @@ describe("markdownExport", () => {
       });
 
       it("should convert code blocks", () => {
-        const result = htmlToMarkdown(
-          '<pre><code>const x = 1;\nconsole.log(x);</code></pre>'
-        );
+        const result = htmlToMarkdown("<pre><code>const x = 1;\nconsole.log(x);</code></pre>");
         expect(result).toContain("```");
         expect(result).toContain("const x = 1;");
         expect(result).toContain("console.log(x);");
@@ -98,14 +96,14 @@ describe("markdownExport", () => {
 
       it("should detect language from class", () => {
         const result = htmlToMarkdown(
-          '<pre class="language-javascript"><code>const x = 1;</code></pre>'
+          '<pre class="language-javascript"><code>const x = 1;</code></pre>',
         );
         expect(result).toContain("```javascript");
       });
 
       it("should detect language from code element class", () => {
         const result = htmlToMarkdown(
-          '<pre><code class="language-typescript">const x: number = 1;</code></pre>'
+          '<pre><code class="language-typescript">const x: number = 1;</code></pre>',
         );
         expect(result).toContain("```typescript");
       });
@@ -233,39 +231,31 @@ describe("markdownExport", () => {
 
     describe("role detection", () => {
       it("should detect user role from data attribute", () => {
-        const result = htmlToMarkdown(
-          '<div data-message-author-role="user">User message</div>'
-        );
+        const result = htmlToMarkdown('<div data-message-author-role="user">User message</div>');
         expect(result).toContain("**User:**");
         expect(result).toContain("User message");
       });
 
       it("should detect assistant role from data attribute", () => {
         const result = htmlToMarkdown(
-          '<div data-message-author-role="assistant">Assistant response</div>'
+          '<div data-message-author-role="assistant">Assistant response</div>',
         );
         expect(result).toContain("**Assistant:**");
         expect(result).toContain("Assistant response");
       });
 
       it("should detect human role as user", () => {
-        const result = htmlToMarkdown(
-          '<div data-message-author-role="human">Human input</div>'
-        );
+        const result = htmlToMarkdown('<div data-message-author-role="human">Human input</div>');
         expect(result).toContain("**User:**");
       });
 
       it("should detect ai role as assistant", () => {
-        const result = htmlToMarkdown(
-          '<div data-message-author-role="ai">AI response</div>'
-        );
+        const result = htmlToMarkdown('<div data-message-author-role="ai">AI response</div>');
         expect(result).toContain("**Assistant:**");
       });
 
       it("should detect bot role as assistant", () => {
-        const result = htmlToMarkdown(
-          '<div data-message-author-role="bot">Bot response</div>'
-        );
+        const result = htmlToMarkdown('<div data-message-author-role="bot">Bot response</div>');
         expect(result).toContain("**Assistant:**");
       });
 
@@ -283,25 +273,19 @@ describe("markdownExport", () => {
       });
 
       it("should skip elements with role=button", () => {
-        const result = htmlToMarkdown(
-          '<div role="button">Click me</div><p>Text</p>'
-        );
+        const result = htmlToMarkdown('<div role="button">Click me</div><p>Text</p>');
         expect(result).not.toContain("Click me");
         expect(result).toContain("Text");
       });
 
       it("should skip elements with copy class", () => {
-        const result = htmlToMarkdown(
-          '<div class="copy-button">Copy</div><p>Code</p>'
-        );
+        const result = htmlToMarkdown('<div class="copy-button">Copy</div><p>Code</p>');
         expect(result).not.toContain("Copy");
         expect(result).toContain("Code");
       });
 
       it("should skip elements with toolbar class", () => {
-        const result = htmlToMarkdown(
-          '<div class="toolbar">Tools</div><p>Main content</p>'
-        );
+        const result = htmlToMarkdown('<div class="toolbar">Tools</div><p>Main content</p>');
         expect(result).not.toContain("Tools");
         expect(result).toContain("Main content");
       });

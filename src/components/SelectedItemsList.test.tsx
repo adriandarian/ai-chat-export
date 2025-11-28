@@ -75,7 +75,7 @@ describe("SelectedItemsList", () => {
     it("should call onRemove when remove button is clicked", () => {
       const onRemove = vi.fn();
       const { container } = render(
-        <SelectedItemsList {...defaultProps} items={mockItems} onRemove={onRemove} />
+        <SelectedItemsList {...defaultProps} items={mockItems} onRemove={onRemove} />,
       );
 
       const removeButtons = container.querySelectorAll("button");
@@ -86,7 +86,7 @@ describe("SelectedItemsList", () => {
     it("should call onRemove with correct id for second item", () => {
       const onRemove = vi.fn();
       const { container } = render(
-        <SelectedItemsList {...defaultProps} items={mockItems} onRemove={onRemove} />
+        <SelectedItemsList {...defaultProps} items={mockItems} onRemove={onRemove} />,
       );
 
       const removeButtons = container.querySelectorAll("button");

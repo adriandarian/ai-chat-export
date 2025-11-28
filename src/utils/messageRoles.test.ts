@@ -114,7 +114,7 @@ describe("messageRoles", () => {
       expect(detectMessageRole(element)).toBe("assistant");
     });
 
-    it('should return undefined for elements without clear role', () => {
+    it("should return undefined for elements without clear role", () => {
       const element = document.createElement("div");
       element.className = "generic-content";
       expect(detectMessageRole(element)).toBeUndefined();

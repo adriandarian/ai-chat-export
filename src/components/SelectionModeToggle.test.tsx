@@ -61,7 +61,9 @@ describe("SelectionModeToggle", () => {
   describe("interactions", () => {
     it("should call onModeChange with 'element' when element button is clicked", () => {
       const onModeChange = vi.fn();
-      render(<SelectionModeToggle {...defaultProps} onModeChange={onModeChange} mode="conversation" />);
+      render(
+        <SelectionModeToggle {...defaultProps} onModeChange={onModeChange} mode="conversation" />,
+      );
 
       fireEvent.click(screen.getByText("Element"));
       expect(onModeChange).toHaveBeenCalledWith("element");

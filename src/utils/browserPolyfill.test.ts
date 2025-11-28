@@ -26,35 +26,35 @@ describe("browserPolyfill", () => {
 
     it("should detect Chrome browser", () => {
       mockUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
       );
       expect(detectBrowser()).toBe("chrome");
     });
 
     it("should detect Firefox browser", () => {
       mockUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
       );
       expect(detectBrowser()).toBe("firefox");
     });
 
     it("should detect Safari browser", () => {
       mockUserAgent(
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15"
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
       );
       expect(detectBrowser()).toBe("safari");
     });
 
     it("should detect Edge browser", () => {
       mockUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
       );
       expect(detectBrowser()).toBe("edge");
     });
 
     it("should detect Opera browser", () => {
       mockUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
       );
       expect(detectBrowser()).toBe("opera");
     });
@@ -62,7 +62,7 @@ describe("browserPolyfill", () => {
     it("should detect Brave browser", () => {
       mockUserAgent(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        true
+        true,
       );
       expect(detectBrowser()).toBe("brave");
     });
@@ -75,7 +75,7 @@ describe("browserPolyfill", () => {
     it("should prioritize edge detection over chrome in user agent", () => {
       // Edge UA contains both "chrome" and "edg/"
       mockUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
       );
       expect(detectBrowser()).toBe("edge");
     });
@@ -83,7 +83,7 @@ describe("browserPolyfill", () => {
     it("should prioritize opera detection", () => {
       // Opera UA might contain "chrome"
       mockUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
       );
       expect(detectBrowser()).toBe("opera");
     });

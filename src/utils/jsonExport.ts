@@ -200,14 +200,18 @@ const parseMessageContent = (element: Element): MessageContent[] => {
 
   // Process the element
   const tagName = element.tagName?.toLowerCase();
-  
+
   // If the element itself is a processable element (not just a container), process it directly
-  if (["pre", "img", "a", "ul", "ol", "p", "h1", "h2", "h3", "h4", "h5", "h6", "span"].includes(tagName)) {
+  if (
+    ["pre", "img", "a", "ul", "ol", "p", "h1", "h2", "h3", "h4", "h5", "h6", "span"].includes(
+      tagName,
+    )
+  ) {
     processElement(element);
   } else {
     // For containers, process their children
     processElement(element);
-    
+
     // Also try to process direct children if the container didn't yield results
     if (contents.length === 0) {
       element.childNodes.forEach((child) => {

@@ -31,9 +31,7 @@ describe("elementProcessing", () => {
 
       filterNonConversationElements(container);
 
-      expect(
-        container.querySelector('[data-testid="model-switcher-dropdown-button"]')
-      ).toBeNull();
+      expect(container.querySelector('[data-testid="model-switcher-dropdown-button"]')).toBeNull();
     });
 
     it("should remove share button", () => {

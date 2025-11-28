@@ -110,7 +110,8 @@ describe("codeBlocks", () => {
 
     it("should set data-language attribute on rebuilt pre", () => {
       const container = document.createElement("div");
-      container.innerHTML = '<pre class="language-typescript"><code>const x: number = 1;</code></pre>';
+      container.innerHTML =
+        '<pre class="language-typescript"><code>const x: number = 1;</code></pre>';
       document.body.appendChild(container);
 
       rebuildCodeBlocks(container);

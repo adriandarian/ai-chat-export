@@ -66,8 +66,7 @@ describe("jsonExport", () => {
           tagName: "div",
           className: "",
           xpath: "/html/body/div",
-          content:
-            '<div data-message-author-role="user"><p>What is JavaScript?</p></div>',
+          content: '<div data-message-author-role="user"><p>What is JavaScript?</p></div>',
         },
       ];
 
@@ -184,8 +183,7 @@ describe("jsonExport", () => {
             tagName: "div",
             className: "",
             xpath: "/html/body/div",
-            content:
-              '<div><pre class="language-javascript"><code>const x = 1;</code></pre></div>',
+            content: '<div><pre class="language-javascript"><code>const x = 1;</code></pre></div>',
           },
         ];
 
@@ -194,9 +192,7 @@ describe("jsonExport", () => {
         const promptContent = result.exchanges[0].prompt.content;
         const responseContent = result.exchanges[0].response.content;
         const content = promptContent.length > 0 ? promptContent : responseContent;
-        const codeBlock = content.find(
-          (c: { type: string }) => c.type === "code"
-        );
+        const codeBlock = content.find((c: { type: string }) => c.type === "code");
         expect(codeBlock).toBeDefined();
         expect(codeBlock.language).toBe("javascript");
         expect(codeBlock.content).toContain("const x = 1");
@@ -227,8 +223,7 @@ describe("jsonExport", () => {
             tagName: "div",
             className: "",
             xpath: "/html/body/div",
-            content:
-              '<div data-message-author-role="user"><p>Text content</p></div>',
+            content: '<div data-message-author-role="user"><p>Text content</p></div>',
           },
         ];
 
@@ -250,9 +245,7 @@ describe("jsonExport", () => {
 
         const result = JSON.parse(generateExportJSON(elements));
         const content = result.exchanges[0].prompt.content || result.exchanges[0].response.content;
-        const linkBlock = content.find(
-          (c: { type: string }) => c.type === "link"
-        );
+        const linkBlock = content.find((c: { type: string }) => c.type === "link");
         expect(linkBlock).toBeDefined();
         expect(linkBlock.url).toBe("https://example.com");
         expect(linkBlock.text).toBe("Example Link");
@@ -266,7 +259,8 @@ describe("jsonExport", () => {
             tagName: "div",
             className: "",
             xpath: "/html/body/div",
-            content: '<div data-message-author-role="assistant"><a href="https://example.com">Example Link</a></div>',
+            content:
+              '<div data-message-author-role="assistant"><a href="https://example.com">Example Link</a></div>',
           },
         ];
 
@@ -288,9 +282,7 @@ describe("jsonExport", () => {
 
         const result = JSON.parse(generateExportJSON(elements));
         const content = result.exchanges[0].prompt.content || result.exchanges[0].response.content;
-        const listBlock = content.find(
-          (c: { type: string }) => c.type === "list"
-        );
+        const listBlock = content.find((c: { type: string }) => c.type === "list");
         expect(listBlock).toBeDefined();
         expect(listBlock.ordered).toBe(false);
         expect(listBlock.items).toContain("Item 1");
@@ -311,9 +303,7 @@ describe("jsonExport", () => {
 
         const result = JSON.parse(generateExportJSON(elements));
         const content = result.exchanges[0].prompt.content || result.exchanges[0].response.content;
-        const listBlock = content.find(
-          (c: { type: string }) => c.type === "list"
-        );
+        const listBlock = content.find((c: { type: string }) => c.type === "list");
         expect(listBlock).toBeDefined();
         expect(listBlock.ordered).toBe(true);
       });
@@ -332,9 +322,7 @@ describe("jsonExport", () => {
 
         const result = JSON.parse(generateExportJSON(elements));
         const content = result.exchanges[0].prompt.content || result.exchanges[0].response.content;
-        const textBlock = content.find(
-          (c: { type: string }) => c.type === "text"
-        );
+        const textBlock = content.find((c: { type: string }) => c.type === "text");
         expect(textBlock).toBeDefined();
         expect(textBlock.content).toContain("## Heading Two");
       });
@@ -353,9 +341,7 @@ describe("jsonExport", () => {
 
         const result = JSON.parse(generateExportJSON(elements));
         const content = result.exchanges[0].prompt.content || result.exchanges[0].response.content;
-        const textBlocks = content.filter(
-          (c: { type: string }) => c.type === "text"
-        );
+        const textBlocks = content.filter((c: { type: string }) => c.type === "text");
         // Should be merged into fewer blocks
         expect(textBlocks.length).toBeLessThanOrEqual(2);
       });
@@ -421,7 +407,8 @@ describe("jsonExport", () => {
             tagName: "div",
             className: "",
             xpath: "/html/body/div",
-            content: '<div data-message-author-role="assistant"><pre><code class="language-python">print("hi")</code></pre></div>',
+            content:
+              '<div data-message-author-role="assistant"><pre><code class="language-python">print("hi")</code></pre></div>',
           },
         ];
 
@@ -459,8 +446,7 @@ describe("jsonExport", () => {
           tagName: "div",
           className: "",
           xpath: "/html/body/div",
-          content:
-            '<div data-message-author-role="user"><p>Hello</p></div>',
+          content: '<div data-message-author-role="user"><p>Hello</p></div>',
         },
       ];
 
