@@ -21,6 +21,13 @@ const detectLanguage = (element: Element): string => {
   let lang = detectLanguageFromElement(element);
   if (lang) return lang;
 
+  // Check parent pre element (for <code> inside <pre class="language-xxx">)
+  const parentPre = element.closest("pre");
+  if (parentPre && parentPre !== element) {
+    lang = detectLanguageFromElement(parentPre);
+    if (lang) return lang;
+  }
+
   const dataLang = element.getAttribute("data-language");
   if (dataLang) return dataLang;
 
@@ -174,7 +181,7 @@ const parseMessageContent = (element: Element): MessageContent[] => {
     }
 
     // Recursively process children for containers
-    if (["div", "article", "section", "main", "blockquote"].includes(tagName)) {
+    if (["div", "article", "section", "main", "blockquote", "body"].includes(tagName)) {
       el.childNodes.forEach((child) => {
         if (child.nodeType === Node.ELEMENT_NODE) {
           processElement(child as Element);
@@ -192,7 +199,32 @@ const parseMessageContent = (element: Element): MessageContent[] => {
   };
 
   // Process the element
-  processElement(element);
+  const tagName = element.tagName?.toLowerCase();
+  
+  // If the element itself is a processable element (not just a container), process it directly
+  if (["pre", "img", "a", "ul", "ol", "p", "h1", "h2", "h3", "h4", "h5", "h6", "span"].includes(tagName)) {
+    processElement(element);
+  } else {
+    // For containers, process their children
+    processElement(element);
+    
+    // Also try to process direct children if the container didn't yield results
+    if (contents.length === 0) {
+      element.childNodes.forEach((child) => {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          processElement(child as Element);
+        } else if (child.nodeType === Node.TEXT_NODE) {
+          const text = child.textContent?.trim();
+          if (text && text.length > 1) {
+            contents.push({
+              type: "text",
+              content: text,
+            });
+          }
+        }
+      });
+    }
+  }
 
   // If we didn't find any structured content, fall back to plain text
   if (contents.length === 0) {

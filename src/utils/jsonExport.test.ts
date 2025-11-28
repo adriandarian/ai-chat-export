@@ -191,7 +191,9 @@ describe("jsonExport", () => {
 
         const result = JSON.parse(generateExportJSON(elements));
         expect(result.exchanges).toHaveLength(1);
-        const content = result.exchanges[0].prompt.content || result.exchanges[0].response.content;
+        const promptContent = result.exchanges[0].prompt.content;
+        const responseContent = result.exchanges[0].response.content;
+        const content = promptContent.length > 0 ? promptContent : responseContent;
         const codeBlock = content.find(
           (c: { type: string }) => c.type === "code"
         );
