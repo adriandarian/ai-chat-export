@@ -187,7 +187,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: extension-build
           path: dist/
@@ -228,7 +228,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: extension-build
           path: dist/
@@ -266,7 +266,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: extension-build
           path: dist/
@@ -314,14 +314,14 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Download bundle report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: bundle-report
           path: bundle-reports/
         continue-on-error: true
 
       - name: Download coverage report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: test-results
           path: ./
