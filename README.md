@@ -1,5 +1,6 @@
 # <img src="src/assets/logo.svg" width="32" height="32" align="center" /> AI Chat Export Extension
 
+[![CI](https://github.com/adriandarian/ai-chat-export/actions/workflows/ci.yml/badge.svg)](https://github.com/adriandarian/ai-chat-export/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/adriandarian/ai-chat-export?style=flat-square)](https://github.com/adriandarian/ai-chat-export/releases/latest)
 [![License](https://img.shields.io/github/license/adriandarian/ai-chat-export?style=flat-square)](LICENSE)
 [![Semantic Release](https://img.shields.io/badge/semantic--release-conventionalcommits-e10079?style=flat-square&logo=semantic-release)](https://github.com/semantic-release/semantic-release)
