@@ -58,7 +58,7 @@ jobs:
           echo "Build artifacts verified successfully"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: extension-build
           path: dist/
@@ -127,7 +127,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results
           path: |
@@ -201,7 +201,7 @@ jobs:
 
       - name: Upload bundle report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bundle-report
           path: bundle-reports/
@@ -239,7 +239,7 @@ jobs:
 
       - name: Upload Lighthouse results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: lighthouse-results
           path: .lighthouseci/
