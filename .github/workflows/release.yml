@@ -97,7 +97,7 @@ jobs:
           ls -lh packages/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ai-chat-export-${{ matrix.browser }}
           path: packages/ai-chat-export-${{ matrix.browser }}-v${{ needs.release.outputs.new_release_version }}.zip
